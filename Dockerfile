@@ -25,8 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install Python dependencies first (layer-cached)
-COPY requirements.txt requirements.streamlit.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements.streamlit.txt
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY . .
@@ -34,11 +34,7 @@ COPY . .
 # Cloud Run always uses port 8080
 EXPOSE 8080
 
-# Disable Streamlit's browser-open and telemetry for headless Cloud Run
-ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-ENV STREAMLIT_SERVER_HEADLESS=true
-
 # Run FastAPI app
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "main.py"]
 
 

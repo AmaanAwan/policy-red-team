@@ -80,7 +80,8 @@ policy-red-team/
 │       ├── workflow.py     # SequentialAgent DAG & callbacks
 │       └── runner.py       # MCP subprocess launcher & ADK Runner
 ├── tests/            # Automated test suite (pytest)
-├── app.py            # Streamlit web application
+├── main.py           # FastAPI server & API endpoints
+├── static/           # Vanilla HTML/CSS/JS frontend
 ├── Dockerfile        # Cloud Run container definition
 └── requirements.txt  # Pinned dependencies
 ```

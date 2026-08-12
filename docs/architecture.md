@@ -24,60 +24,52 @@ The **Automated Regulatory Robustness Testing** framework is a thesis-grade, mul
 
 ```mermaid
 graph TD
-    subgraph ClientRunner["Runner & Process Lifecycle (runner.py)"]
-        R[Runner Script] -->|1. Spawns Subprocess| SSE_Server["MCP Server (mcp_server.py --transport sse)"]
-        R -->|2. Health Checks http://127.0.0.1:8090/sse| SSE_Server
-        R -->|3. Initializes| SessionState["ADK Session State (PolicyAuditState)"]
-        R -->|4. Invokes| RootWorkflow["PolicyAuditWorkflow (SequentialAgent DAG)"]
+    subgraph DataLayer["Phase 1: Data Layer (ingest_policy.py & storage/faiss)"]
+        PDFs["Policy Documents (data/*.pdf)"] -->|LlamaCloud Agentic Parser| Nodes["HierarchicalNodeParser (2048 -> 512 -> 128 tokens)"]
+        Nodes -->|128-token Leaves| FAISS["FAISS Vector Index"]
+        Nodes -->|All Tiers| Docstore["LlamaIndex Docstore"]
+    end
+
+    subgraph BridgeLayer["Phase 2: Bridge Layer (mcp_server.py)"]
+        FAISS -->|Leaf Retrieval| AutoMerge["AutoMergingRetriever"]
+        Docstore -->|Parent Lookup| AutoMerge
+        AutoMerge --> MCP_Tool["FastMCP SSE Endpoint (search_policy_documents)"]
     end
 
     subgraph OrchestrationLayer["Phase 3: ADK Multi-Agent Orchestration (workflow.py & agents.py)"]
-        RootWorkflow --> Round1["DebateRound1 (SequentialAgent)"]
-        RootWorkflow --> Round2["DebateRound2 (SequentialAgent + Loop Guard)"]
-        RootWorkflow --> Round3["DebateRound3 (SequentialAgent + Loop Guard)"]
+        MCP_Tool -.->|SSE Tool Transport| Attacker["AttackerAgent (gemini-3.1-pro-preview)"]
+        MCP_Tool -.->|SSE Tool Transport| Defender["DefenderAgent (gemini-3.1-pro-preview)"]
 
-        subgraph DebateRound["Inside Each Debate Round"]
-            Attacker["AttackerAgent (gemini-3.1-pro-preview)"] -->|Writes current_exploit_text| Defender["DefenderAgent (gemini-3.1-pro-preview)"]
-            Defender -->|Writes current_rebuttal_text| Summarizer["TurnSummarizerAgent (gemini-3.6-flash)"]
-            Summarizer -->|after_agent_callback: Compresses to TurnSummary| Dedup["DeduplicationAgent (gemini-3.6-flash)"]
-            Dedup -->|after_agent_callback: If STOP, loop_should_continue=False| RoundEnd(("Round Finish"))
-        end
+        Attacker -->|Writes current_exploit_text| Defender
+        Defender -->|Writes current_rebuttal_text| Summarizer["TurnSummarizerAgent (gemini-3.6-flash)"]
+        Summarizer -->|Compresses TurnSummary| Dedup["DeduplicationAgent (gemini-3.6-flash)"]
 
-        Round1 -->|If loop_should_continue=True| Round2
-        Round2 -->|If loop_should_continue=True| Round3
-        Round1 -->|If loop_should_continue=False| Canonicalizer
-        Round2 -->|If loop_should_continue=False| Canonicalizer
-        Round3 --> Canonicalizer["ExploitCanonicalizerAgent (gemini-3.6-flash)"]
-
+        Dedup -->|If CONTINUE| Canonicalizer["ExploitCanonicalizerAgent (gemini-3.6-flash)"]
         Canonicalizer -->|Writes canonical_exploit_json| Swarm["StakeholderSwarm (ParallelAgent)"]
 
         subgraph ParallelSwarm["Parallel Stakeholder Swarm"]
             Swarm -->|Concurrently Executes| Citizen["CitizenProxyAgent (gemini-3.6-flash)"]
             Swarm -->|Concurrently Executes| Business["BusinessProxyAgent (gemini-3.6-flash)"]
-            Citizen -->|Writes citizen_score_json| SwarmMerge(("Merge Outputs"))
-            Business -->|Writes business_score_json| SwarmMerge
+            Citizen --> SwarmMerge(("Merge Outputs"))
+            Business --> SwarmMerge
         end
 
         SwarmMerge --> Judge["JudgeAgent (gemini-3.1-pro-preview)"]
         Judge -->|Validates & Emits| FinalReport["LoopholeReport (JSON)"]
     end
 
-    subgraph BridgeLayer["Phase 2: Bridge Layer (mcp_server.py)"]
-        Attacker -.->|Tool Call: search_policy_documents| MCP_Tool["FastMCP SSE Endpoint"]
-        Defender -.->|Tool Call: search_policy_documents| MCP_Tool
-        MCP_Tool --> AutoMerge["AutoMergingRetriever"]
+    subgraph WebLayer["Phase 4: Web Application Layer (main.py & static/)"]
+        Runner["Runner Script (runner.py)"] -->|Generates Report| FinalReport
+        FinalReport -->|API Endpoint /audit| FastAPI["FastAPI Backend (main.py)"]
+        FastAPI -->|Serves Web UI| WebUI["HTML/CSS/JS Dashboard (static/index.html)"]
     end
 
-    subgraph DataLayer["Phase 1: Data Layer (ingest_policy.py & storage/faiss)"]
-        AutoMerge -->|Leaf Query| FAISS["FAISS Vector Index (128-token leaves)"]
-        AutoMerge -->|Parent Lookup| Docstore["LlamaIndex Docstore (2048/512 parent nodes)"]
-    end
-
+    style PDFs fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
     style Attacker fill:#f9f,stroke:#333,stroke-width:2px
     style Defender fill:#bbf,stroke:#333,stroke-width:2px
     style Judge fill:#bfb,stroke:#333,stroke-width:2px
     style MCP_Tool fill:#ffe6cc,stroke:#d79b00,stroke-width:2px
-    style FinalReport fill:#d5e8d4,stroke:#82b366,stroke-width:2px
+    style WebUI fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
 ```
 
 ---

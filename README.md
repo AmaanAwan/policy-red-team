@@ -12,50 +12,60 @@
 ## System Architecture
 
 ```
-                                  ┌─────────────────────────────────────────────────────────┐
-                                  │      Phase 3: ADK Multi-Agent Orchestration Layer       │
-                                  │                                                         │
-                                  │  ┌──────────────┐   Debate Loop    ┌──────────────┐     │
-                                  │  │ AttackerAgent│ ───────────────> │ DefenderAgent│     │
-                                  │  │ (gemini-3.1) │ <─────────────── │ (gemini-3.1) │     │
-                                  │  └──────┬───────┘                  └──────┬───────┘     │
-                                  │         │                                 │             │
-                                  │         └────────────────┬────────────────┘             │
-                                  │                          │                              │
-                                  │           ┌──────────────▼──────────────┐               │
-                                  │           │   TurnSummarizer & Dedup    │               │
-                                  │           │     (gemini-3.6-flash)      │               │
-                                  │           └──────────────┬──────────────┘               │
-                                  │                          │                              │
-                                  │           ┌──────────────▼──────────────┐               │
-                                  │           │    ExploitCanonicalizer     │               │
-                                  │           └──────────────┬──────────────┘               │
-                                  │                          │                              │
-                                  │           ┌──────────────▼──────────────┐               │
-                                  │           │  Stakeholder Swarm (Parallel)│              │
-                                  │           │   Citizen & Business Proxies│               │
-                                  │           └──────────────┬──────────────┘               │
-                                  │                          │                              │
-                                  │           ┌──────────────▼──────────────┐               │
-                                  │           │          JudgeAgent         │               │
-                                  │           │     (gemini-3.1-preview)    │               │
-                                  │           └──────────────┬──────────────┘               │
-                                  └──────────────────────────┼──────────────────────────────┘
-                                                             │ FastMCP (SSE Transport)
-                                  ┌──────────────────────────┼──────────────────────────────┐
-                                  │    Phase 2: Bridge Layer (mcp_server.py)                │
-                                  │    ┌──────────────────────────────────────────────┐     │
-                                  │    │ search_policy_documents (AutoMergingRetriever)│     │
-                                  │    └─────────────────────┬────────────────────────┘     │
-                                  └──────────────────────────┼──────────────────────────────┘
-                                                             │
-                                  ┌──────────────────────────┼──────────────────────────────┐
-                                  │    Phase 1: Data Layer (ingest_policy.py)               │
-                                  │    ┌──────────────────────┐    ┌────────────────────┐   │
-                                  │    │  FAISS Vector Index  │    │ LlamaIndex Docstore│   │
-                                  │    │ (128-token leaves)   │    │ (2048/512 parents) │   │
-                                  │    └──────────────────────┘    └────────────────────┘   │
-                                  └─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│              Phase 1: Data Layer (ingest_policy.py)                     │
+│  ┌──────────────────────────────┐       ┌────────────────────────────┐  │
+│  │     FAISS Vector Store       │       │    LlamaIndex Docstore     │  │
+│  │ (128-token leaf embeddings)  │       │ (2048/512 parent nodes)    │  │
+│  └──────────────┬───────────────┘       └─────────────┬──────────────┘  │
+└─────────────────┼─────────────────────────────────────┼─────────────────┘
+                  │                                     │
+┌─────────────────┼─────────────────────────────────────┼─────────────────┐
+│                 ▼    Phase 2: Bridge Layer (mcp_server.py) ▼                 │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │      AutoMergingRetriever over FastMCP (http://127.0.0.1:8090/sse) │  │
+│  └──────────────────────────────────┬────────────────────────────────┘  │
+└─────────────────────────────────────┼───────────────────────────────────┘
+                                      │ FastMCP SSE Transport
+┌─────────────────────────────────────┼───────────────────────────────────┐
+│                                     ▼                                   │
+│            Phase 3: ADK Multi-Agent Orchestration Layer                 │
+│                                                                         │
+│    ┌──────────────┐      Debate Loop       ┌──────────────┐             │
+│    │ AttackerAgent│ ─────────────────────> │ DefenderAgent│             │
+│    │(gemini-3.1-p)│ <───────────────────── │(gemini-3.1-p)│             │
+│    └──────┬───────┘                        └──────┬───────┘             │
+│           │                                       │                     │
+│           └───────────────────┬───────────────────┘                     │
+│                               │                                         │
+│                ┌──────────────▼──────────────┐                          │
+│                │   TurnSummarizer & Dedup    │                          │
+│                │     (gemini-3.6-flash)      │                          │
+│                └──────────────┬──────────────┘                          │
+│                               │                                         │
+│                ┌──────────────▼──────────────┐                          │
+│                │    ExploitCanonicalizer     │                          │
+│                └──────────────┬──────────────┘                          │
+│                               │                                         │
+│                ┌──────────────▼──────────────┐                          │
+│                │  Stakeholder Swarm (Par.)   │                          │
+│                │  Citizen & Business Proxies │                          │
+│                └──────────────┬──────────────┘                          │
+│                               │                                         │
+│                ┌──────────────▼──────────────┐                          │
+│                │         JudgeAgent          │                          │
+│                │    (gemini-3.1-pro-prev)    │                          │
+│                └──────────────┬──────────────┘                          │
+└───────────────────────────────┼─────────────────────────────────────────┘
+                                │ JSON Report Payload
+┌───────────────────────────────┼─────────────────────────────────────────┐
+│                               ▼                                         │
+│     Phase 4: Web Application Layer (FastAPI Backend + HTML/CSS/JS)      │
+│  ┌─────────────────────────────┐        ┌────────────────────────────┐  │
+│  │  FastAPI Server (main.py)   │ ─────> │ Modern Dashboard UI        │  │
+│  │  Endpoints & Upload Pipeline│        │ (static/index.html + CSS)  │  │
+│  └─────────────────────────────┘        └────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -151,13 +161,19 @@ This script:
 3. Executes the adversarial debate, stakeholder scoring, and Judge synthesis
 4. Generates a structured `LoopholeReport` JSON in `./storage/reports/`
 
-### Step 3: Launch the Streamlit Web Application
+### Step 3: Launch the Web Application (FastAPI + HTML/CSS/JS)
 
 ```bash
-streamlit run app.py
+python main.py
 ```
 
-Opens an interactive dashboard to upload PDFs, configure audit parameters, run live red-team audits, and visualize stakeholder impact analysis.
+or via Uvicorn:
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+Opens the modern, responsive web dashboard at `http://localhost:8000` to upload PDFs, configure audit parameters, execute live red-team audits, and visualize stakeholder impact scoring.
 
 ---
 
@@ -193,7 +209,11 @@ policy-red-team/
 ├── README.md                 # Project documentation
 ├── Dockerfile                # Container definition for Cloud Run
 ├── requirements.txt          # Production dependencies
-├── app.py                    # Streamlit Web Application UI
+├── main.py                   # FastAPI application server & API endpoints
+├── static/                   # Web Application Frontend (Vanilla HTML/CSS/JS)
+│   ├── index.html            # Main web app layout
+│   ├── styles.css            # Custom styling system
+│   └── app.js                # Frontend logic & API fetch client
 ├── config/
 │   ├── __init__.py
 │   └── settings.py           # Centralized application settings
