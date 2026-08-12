@@ -1,0 +1,50 @@
+# ============================
+# Environment & Secrets
+# ============================
+.env
+.env.local
+
+# ============================
+# Python
+# ============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ============================
+# Virtual Environment
+# ============================
+venv/
+.venv/
+env/
+
+# ============================
+# Persisted Storage (generated)
+# ============================
+storage/
+
+# ============================
+# IDE / Editor
+# ============================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ============================
+# OS
+# ============================
+.DS_Store
+Thumbs.db
+# GCP Service Account Keys
+# Only ignore credential JSON files — NOT all JSON.
+*-credentials.json
+*-service-account.json
+gcp-key.json
+policy-red-team-*.json

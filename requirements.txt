@@ -1,0 +1,56 @@
+# ============================================================
+# Automated Regulatory Robustness Testing — Dependencies
+# ============================================================
+# Install: pip install -r requirements.txt
+#
+# CONSTRAINT: No local inference. No PyTorch. No large model
+# downloads. All heavy compute is offloaded to cloud APIs.
+# ============================================================
+
+# --- Core LlamaIndex Framework ---
+llama-index-core
+
+# --- Document Parsing (Cloud API) ---
+# Replaces the deprecated `llama-parse` package (EOL May 2026).
+# LlamaParse extracts structured markdown from PDFs via API —
+# no local OCR or ML models required.
+llama-cloud>=2.8
+
+# --- Vector Store ---
+# FAISS (CPU-only) for in-memory similarity search.
+# Lightweight — no GPU dependencies.
+llama-index-vector-stores-faiss
+faiss-cpu
+
+# --- Embeddings (Cloud API) ---
+# Google Vertex AI text-embedding-004 (768-dim).
+# All embedding computation runs on Google Cloud.
+llama-index-embeddings-vertex
+
+# --- MCP Server ---
+# Model Context Protocol server framework.
+# Exposes retrieval as a standardized tool for ADK agents.
+fastmcp
+
+# --- Phase 3: ADK Multi-Agent Orchestration ---
+# Google Agent Development Kit (ADK) with Vertex AI backend.
+# Provides LlmAgent, SequentialAgent, ParallelAgent, Runner, etc.
+google-adk
+
+# Google Cloud AI Platform SDK.
+# Required for Vertex AI model access (gemini-2.5-flash / gemini-2.5-pro).
+google-cloud-aiplatform
+
+# Async HTTP client — used by runner.py to health-check the MCP
+# SSE server before starting the ADK workflow.
+httpx
+
+# --- Configuration ---
+python-dotenv
+
+# --- Web Framework (FastAPI) ---
+fastapi
+uvicorn
+python-multipart
+# --- Testing ---
+pytest
