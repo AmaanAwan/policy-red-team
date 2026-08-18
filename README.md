@@ -11,6 +11,8 @@
 
 ## System Architecture
 
+> 📖 **Detailed Specification**: For comprehensive documentation on data flows, component design, and architectural decisions, see [docs/architecture.md](docs/architecture.md).
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │              Phase 1: Data Layer (ingest_policy.py)                     │
