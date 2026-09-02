@@ -38,7 +38,7 @@ START
   │     ├─► CitizenProxyAgent  → writes citizen_score_json
   │     └─► BusinessProxyAgent → writes business_score_json
   │
-  └─► JudgeAgent (gemini-2.5-pro)
+  └─► JudgeAgent (gemini-3.1-pro-preview)
         [Reads all outputs, writes final_report_json]
   │
 DONE
@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Optional
 
 from google.adk.agents import (
@@ -85,6 +86,15 @@ from src.orchestration.state import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _strip_markdown_fences(raw: str) -> str:
+    """Strip ```json ... ``` fences from LLM output before JSON parsing."""
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    return cleaned.strip()
 
 
 # ===================================================================
@@ -153,7 +163,9 @@ def _make_after_summarizer_callback(round_num: int):
     def callback(
         callback_context: CallbackContext,
     ) -> Optional[genai_types.Content]:
-        summary_json_str = callback_context.state.get("latest_turn_summary_json", "{}")
+        summary_json_str = _strip_markdown_fences(
+            callback_context.state.get("latest_turn_summary_json", "{}")
+        )
 
         try:
             summary_data = json.loads(summary_json_str)
@@ -246,7 +258,7 @@ def _make_after_dedup_callback(round_num: int):
         raw_result = callback_context.state.get("deduplication_result", "CONTINUE")
         result = raw_result.strip().upper()
 
-        if result == "STOP":
+        if "STOP" in result:
             callback_context.state["loop_should_continue"] = False
             current_turn = callback_context.state.get("current_turn", round_num)
             logger.info(

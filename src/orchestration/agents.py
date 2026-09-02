@@ -7,7 +7,7 @@ Factory functions for all 7 ADK LlmAgents used in the workflow.
 Each function returns a fully configured LlmAgent with:
   - Dynamic jurisdiction context injected via _build_jurisdiction_context()
   - Pakistan-first legal anchoring (no US/UK/foreign law contamination)
-  - Appropriate model: gemini-2.5-flash (speed) or gemini-2.5-pro (depth)
+  - Appropriate model: gemini-3.6-flash (speed) or gemini-3.1-pro-preview (depth)
   - Unique agent name (includes round_num suffix for Rounds 2 & 3)
   - output_key wired to the correct session state slot
 
@@ -625,7 +625,7 @@ supply chain impacts, investment risk, and regulatory arbitrage opportunities.
 
 def create_judge_agent(state: PolicyAuditState) -> LlmAgent:
     """
-    The JudgeAgent produces the final LoopholeReport. Uses gemini-2.5-pro
+    The JudgeAgent produces the final LoopholeReport. Uses gemini-3.1-pro-preview
     for maximum reasoning depth and strict Pydantic schema enforcement.
 
     Evidence-binding: may only cite statutory text that appeared in the

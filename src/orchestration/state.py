@@ -139,7 +139,7 @@ class TurnSummary(BaseModel):
     CONTEXT WINDOW ROT PREVENTION:
     One MCP tool call returns up to 6 auto-merged nodes × 2048 tokens = ~12,288 tokens.
     Across 6 tool calls in a 3-turn debate = ~73,728 tokens of raw policy text in state.
-    TurnSummary compresses each turn to ~50 tokens, preventing context window rot.
+    TurnSummary compresses each turn to ~150-200 tokens, preventing context window rot.
 
     The TurnSummarizerAgent produces this JSON. An after_agent_callback parses it
     and appends it to the debate_history in session state.

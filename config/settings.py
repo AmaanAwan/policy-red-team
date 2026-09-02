@@ -75,7 +75,7 @@ class Settings:
     CHUNK_SIZES: tuple[int, ...] = (2048, 512, 128)
 
     # --- Retrieval ---
-    SIMILARITY_TOP_K: int = 6  # Number of leaf nodes to retrieve before merging
+    SIMILARITY_TOP_K: int = 12  # Number of leaf nodes to retrieve before merging
 
     # --- Paths ---
     DATA_DIR: Path = field(default_factory=lambda: PROJECT_ROOT / "data")

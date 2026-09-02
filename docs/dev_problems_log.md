@@ -134,6 +134,24 @@ This document presents a deep-tech architectural retrospective of the engineerin
 
 ---
 
+## 14. Production Readiness: Deprecation of Mock Environments
+
+* **Problem:** Risk of deploying local test configurations (MockEmbedding) to production Cloud Run environments, causing silently degraded retrieval performance (random vectors).
+* **Root Cause Analysis:** The previous graceful degradation strategy (falling back to MockEmbedding on GCP credential absence) created a failure mode where production deployments could silently operate in mock mode if `GOOGLE_APPLICATION_CREDENTIALS` or IAM permissions were misconfigured.
+* **Remediation & Architecture Fix:** Removed `MockEmbedding` fallback entirely from `src/embeddings.py`. Enforced `VertexTextEmbedding` as the sole provider. The system now "fails fast" during initialization if Vertex AI is unreachable, ensuring production integrity.
+* **Technical Pattern:** Fail-Fast Initialization, Hardened Production Boundaries, Strict Dependency Enforcement.
+
+---
+
+## 15. Information Retrieval: Multi-Document Context Expansion
+
+* **Problem:** Insufficient cross-document evidence retrieval when auditing a policy against a separate supporting statute.
+* **Root Cause Analysis:** The FAISS `SIMILARITY_TOP_K` was initially calibrated to 6 for single-document audits. When a secondary supporting document was introduced, the top-K limit truncated relevant contextual nodes from the secondary document.
+* **Remediation & Architecture Fix:** Doubled `SIMILARITY_TOP_K` from 6 to 12 in `config/settings.py` to ensure sufficient leaf-node retrieval depth across multi-PDF vector spaces before auto-merging.
+* **Technical Pattern:** Vector Retrieval Tuning, Multi-Index Depth Expansion.
+
+---
+
 ## Summary Matrix
 
 | Failure Mode | Deep-Tech Root Cause | Remediation Primitive | CS/AI Engineering Domain |
@@ -151,3 +169,5 @@ This document presents a deep-tech architectural retrospective of the engineerin
 | Embedding Init Crash | Unhandled `VertexTextEmbedding` exceptions | Try-except `MockEmbedding` fallback | Resilient Service Degradation |
 | Invalid Model Name | Non-existent Gemini model constants | `gemini-3.6-flash` & `gemini-3.1-pro-preview` | Model Registry Alignment |
 | Markdown JSON Fences | LLM code block wrappers in JSON output | Markdown fence stripper in `_extract_report()` | Payload Sanitization / Deserialization |
+| Mock Environment Risk | Silent degradation in production | Enforced Vertex AI + Fail Fast | Hardened Production Boundaries |
+| Multi-Doc Truncation | `SIMILARITY_TOP_K=6` limit | Doubled Top-K to 12 | Vector Retrieval Tuning |
