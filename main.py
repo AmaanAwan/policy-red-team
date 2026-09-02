@@ -15,6 +15,20 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import pypdf
 
+from src.db import (
+    init_db,
+    verify_passcode,
+    can_generate_report,
+    record_report,
+    get_user_reports,
+    get_all_reports,
+    get_report_by_id,
+    create_passcode,
+    list_all_passcodes,
+    delete_passcode,
+    update_passcode_limit,
+)
+
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -24,8 +38,9 @@ APP_PASSWORD = os.environ.get("APP_PASSWORD", "policy2026")
 DEV_LLAMA_KEY = os.environ.get("LLAMA_CLOUD_API_KEY", "")
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "")
 
-# Initialize FastAPI
+# Initialize FastAPI & Database
 app = FastAPI(title="Policy Red Team API")
+init_db()
 
 # Add CORS Middleware
 app.add_middleware(
@@ -121,9 +136,17 @@ def _save_feedback_to_gcs(feedback: dict) -> bool:
 
 @app.post("/api/auth")
 async def authenticate(password: str = Form(...)):
-    if password == APP_PASSWORD:
-        return {"status": "ok"}
-    raise HTTPException(status_code=401, detail="Incorrect password")
+    info = verify_passcode(password)
+    if info:
+        return {
+            "status": "ok",
+            "passcode": info["passcode"],
+            "is_admin": info["is_admin"],
+            "label": info["label"],
+            "reports_used": info["reports_used"],
+            "report_limit": info["report_limit"],
+        }
+    raise HTTPException(status_code=401, detail="Invalid passcode. Please check your credentials.")
 
 @app.post("/api/analyze")
 async def analyze_policies(
@@ -136,8 +159,10 @@ async def analyze_policies(
     enable_web_search: Optional[str] = Form("false"),
     files: List[UploadFile] = File(...),
 ):
-    if password != APP_PASSWORD:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    # Verify passcode and quota
+    allowed, reason, user_info = can_generate_report(password)
+    if not allowed or not user_info:
+        raise HTTPException(status_code=403, detail=reason)
 
     if not files or len(files) == 0:
         raise HTTPException(status_code=400, detail="No files uploaded.")
@@ -149,6 +174,20 @@ async def analyze_policies(
         content = await f.read()
         files_data.append({"name": f.filename, "bytes": content})
         
+    # Archive uploaded PDFs to GCS bucket if configured
+    if GCS_BUCKET:
+        try:
+            from google.cloud import storage
+            client = storage.Client()
+            bucket = client.bucket(GCS_BUCKET)
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            for idx, f_data in enumerate(files_data):
+                clean_name = Path(f_data["name"]).name
+                blob = bucket.blob(f"uploads/{ts}_{idx}_{clean_name}")
+                blob.upload_from_string(f_data["bytes"], content_type="application/pdf")
+        except Exception as e:
+            logger.warning(f"GCS PDF archive failed: {e}")
+
     auto_meta = _autodetect_metadata(files_data)
     j_level = jurisdiction_level if jurisdiction_level else auto_meta["level"]
     j_dist = jurisdiction if jurisdiction else auto_meta["jurisdiction"]
@@ -197,13 +236,98 @@ async def analyze_policies(
                 output_path=report_path,
             )
             
-            if report_path.exists():
-                return json.loads(report_path.read_text(encoding="utf-8"))
-            return report.model_dump()
+            report_dict = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else report.model_dump()
+            
+            # Persist report to database and mirror to cloud storage
+            record_report(
+                report_id=report_dict.get("session_id", str(uuid.uuid4())),
+                passcode=password,
+                user_label=user_info["label"],
+                report_data=report_dict,
+            )
+            
+            return report_dict
             
         except Exception as e:
             logger.exception("Analysis failed in backend")
             raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/user/info")
+async def get_current_user_info(passcode: str):
+    info = verify_passcode(passcode)
+    if not info:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
+    return info
+
+@app.get("/api/user/reports")
+async def list_user_reports(passcode: str):
+    info = verify_passcode(passcode)
+    if not info:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
+    return get_user_reports(passcode)
+
+@app.get("/api/reports/{report_id}")
+async def get_report_details(report_id: str, passcode: str):
+    info = verify_passcode(passcode)
+    if not info:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
+    report = get_report_by_id(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
+
+# ---------------------------------------------------------------------------
+# Administrator Endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/admin/passcodes")
+async def admin_list_passcodes(admin_passcode: str):
+    info = verify_passcode(admin_passcode)
+    if not info or not info["is_admin"]:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return list_all_passcodes()
+
+@app.post("/api/admin/passcodes")
+async def admin_create_passcode(
+    admin_passcode: str = Form(...),
+    label: str = Form(...),
+    report_limit: int = Form(5),
+    custom_passcode: Optional[str] = Form(""),
+):
+    info = verify_passcode(admin_passcode)
+    if not info or not info["is_admin"]:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return create_passcode(label=label, report_limit=report_limit, custom_passcode=custom_passcode or "")
+
+@app.delete("/api/admin/passcodes/{passcode}")
+async def admin_delete_passcode(passcode: str, admin_passcode: str):
+    info = verify_passcode(admin_passcode)
+    if not info or not info["is_admin"]:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    success = delete_passcode(passcode)
+    if not success:
+        raise HTTPException(status_code=400, detail="Cannot delete master admin passcode")
+    return {"status": "ok", "deleted": passcode}
+
+@app.post("/api/admin/passcodes/{passcode}/adjust")
+async def admin_adjust_passcode(
+    passcode: str,
+    admin_passcode: str = Form(...),
+    report_limit: int = Form(...),
+    reset_used: bool = Form(False),
+):
+    info = verify_passcode(admin_passcode)
+    if not info or not info["is_admin"]:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    success = update_passcode_limit(passcode, report_limit, reset_used)
+    return {"status": "ok", "updated": passcode}
+
+@app.get("/api/admin/reports")
+async def admin_list_all_reports(admin_passcode: str):
+    info = verify_passcode(admin_passcode)
+    if not info or not info["is_admin"]:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return get_all_reports()
 
 @app.post("/api/feedback")
 async def submit_feedback(
@@ -213,11 +337,13 @@ async def submit_feedback(
     message: str = Form(...),
     session_id: str = Form(""),
 ):
-    if password != APP_PASSWORD:
+    info = verify_passcode(password)
+    if not info:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     fd = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "user": info["label"],
         "rating": rating,
         "category": category,
         "message": message,
@@ -238,3 +364,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/")
 async def serve_index():
     return FileResponse("static/index.html")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
+

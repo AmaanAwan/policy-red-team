@@ -187,14 +187,16 @@ Run the full pytest suite:
 pytest tests/ -v
 ```
 
-The test suite covers 16 unit test cases across system boundaries (100% passing):
+The test suite covers **32 unit and integration test cases** across all system layers (100% passing):
 
 | Test File | Component | Test Cases Covered | Result |
 |---|---|---|---|
-| [`tests/test_tools.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_tools.py) | `src/orchestration/tools.py` | Regex AST metadata parser, FAISS score parsing, section ID parsing, page number extraction, empty response fallback, quote capping | ✅ 9/9 Passed |
-| [`tests/test_state.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_state.py) | `src/orchestration/state.py` | Pydantic immutability contracts, `TurnSummary` compression, state defaults, `to_session_dict()`, `from_session_dict()` | ✅ 5/5 Passed |
-| [`tests/test_embeddings.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_embeddings.py) | `src/embeddings.py` | Zero-GCP `MockEmbedding` fallback when credentials are unconfigured or mode is set to `mock` | ✅ 2/2 Passed |
-| **Total** | **System Boundaries** | **Full Automated Test Coverage** | **✅ 16/16 Passed (100%)** |
+| [`tests/test_api_auth.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_api_auth.py) | `main.py` (FastAPI Endpoints) | Master Admin auth, demo tester auth, invalid passcode gating, user reports scoping, admin authorization, passcode generation/deletion | ✅ 5/5 Passed |
+| [`tests/test_db.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_db.py) | `src/db.py` (Persistence & Quotas) | SQLite initialization, passcode verification, quota limits, pre-flight analysis gating, report persistence, admin quota adjustment | ✅ 8/8 Passed |
+| [`tests/test_state.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_state.py) | `src/orchestration/state.py` | Document roles serialization, web search toggle, Pydantic immutability, `TurnSummary` compression, session state serialization | ✅ 8/8 Passed |
+| [`tests/test_tools.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_tools.py) | `src/orchestration/tools.py` | Regex AST metadata parser, FAISS score parsing, section ID extraction, page number extraction, empty response fallback | ✅ 9/9 Passed |
+| [`tests/test_embeddings.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_embeddings.py) | `src/embeddings.py` | Vertex AI text-embedding-004 initialization and credential failure validation | ✅ 2/2 Passed |
+| **Total** | **Full System Coverage** | **Automated Unit & Integration Tests** | **✅ 32/32 Passed (100%)** |
 
 
 ---
@@ -209,13 +211,14 @@ policy-red-team/
 ├── CONTRIBUTING.md           # Guidelines for open-source contributors
 ├── SECURITY.md               # Security policy and disclosure process
 ├── README.md                 # Project documentation
+├── tester_guide.md           # Complete end-user testing instructions
 ├── Dockerfile                # Container definition for Cloud Run
 ├── requirements.txt          # Production dependencies
 ├── main.py                   # FastAPI application server & API endpoints
-├── static/                   # Web Application Frontend (Vanilla HTML/CSS/JS)
-│   ├── index.html            # Main web app layout
-│   ├── styles.css            # Custom styling system
-│   └── app.js                # Frontend logic & API fetch client
+├── static/                   # 2002–2007 Classic Grey Web Application
+│   ├── index.html            # Main web layout with dual ingestion & guidance modals
+│   ├── styles.css            # Classic Windows 2000/XP Silver styling system
+│   └── app.js                # Frontend client, dual upload, quotas & admin console
 ├── config/
 │   ├── __init__.py
 │   └── settings.py           # Centralized application settings
@@ -224,28 +227,32 @@ policy-red-team/
 │   └── *.pdf                 # User-supplied policy documents
 ├── docs/
 │   ├── architecture.md       # Comprehensive architectural specification
-│   └── dev_problems_log.md   # Deep-tech technical retrospective (13 failure modes)
+│   └── dev_problems_log.md   # Deep-tech technical retrospective (19 failure modes)
 ├── src/
 │   ├── __init__.py
-│   ├── embeddings.py         # Embedding model factory (Vertex AI / MockEmbedding)
-│   ├── ingest_policy.py      # Phase 1: PDF → FAISS hierarchical index
+│   ├── db.py                 # SQLite persistence, passcodes, quotas & GCS sync
+│   ├── embeddings.py         # Embedding model factory (Vertex AI text-embedding-004)
+│   ├── ingest_policy.py      # PDF → FAISS hierarchical indexer
 │   ├── inspect_storage.py    # Storage inspection helper
-│   ├── mcp_server.py         # Phase 2: FAISS → MCP tool (FastMCP SSE)
-│   └── orchestration/        # Phase 3: ADK Multi-Agent Orchestration Layer
+│   ├── mcp_server.py         # FAISS → MCP tool (FastMCP SSE)
+│   └── orchestration/        # Google ADK 2.0 Multi-Agent Orchestration Layer
 │       ├── __init__.py
-│       ├── state.py          # Pydantic models & PolicyAuditState
+│       ├── state.py          # Pydantic models, DocumentRole, & PolicyAuditState
 │       ├── tools.py          # MCPToolset factory & AST regex parser
-│       ├── agents.py         # Jurisdiction-aware agent definitions
+│       ├── agents.py         # Attacker, Defender (Search Grounded), Judge & Proxies
 │       ├── workflow.py       # SequentialAgent DAG & callbacks
-│       └── runner.py         # MCP subprocess launcher & audit runner
+│       └── runner.py         # Subprocess launcher & audit execution runner
 ├── storage/                  # Runtime generated artifacts
 │   ├── faiss/                # Persisted FAISS vector store & docstore
+│   ├── policy_red_team.db    # SQLite database (passcodes, quotas, reports)
 │   └── reports/              # Output LoopholeReport JSONs
 └── tests/
     ├── conftest.py           # Shared test fixtures
-    ├── test_embeddings.py    # Embedding fallback tests
-    ├── test_state.py         # State model tests
-    └── test_tools.py         # MCP parser tests
+    ├── test_api_auth.py      # FastAPI auth & admin endpoint tests
+    ├── test_db.py            # SQLite database & quota logic tests
+    ├── test_embeddings.py    # Vertex AI embedding tests
+    ├── test_state.py         # State & document role tests
+    └── test_tools.py         # MCP parser & citation tests
 ```
 
 ---

@@ -179,6 +179,15 @@ This document presents a deep-tech architectural retrospective of the engineerin
 
 ---
 
+## 19. Multi-Tenant Access Control: Ephemeral Cloud Run Persistence & Quota Gating
+
+* **Problem:** Deploying on serverless Google Cloud Run meant all runtime reports and user state stored in local container files would be destroyed on instance scale-down or redeployment. Furthermore, beta testing required individualized tester passcodes with strictly capped audit generation quotas to prevent API budget exhaustion.
+* **Root Cause Analysis:** Serverless container instances have ephemeral, stateless local filesystems. An in-memory or purely container-local storage mechanism cannot support cross-session user history or administrative quota enforcement across autoscaling events.
+* **Remediation & Architecture Fix:** Built a resilient hybrid persistence layer (`src/db.py`) combining high-concurrency local SQLite (WAL mode) with automated bidirectional Google Cloud Storage (`gs://...`) mirroring for passcodes and audit report JSONs. Enforced cryptographic/passcode-level quota checking before spinning up multi-agent workloads, backed by an administrative console for live quota management.
+* **Technical Pattern:** Hybrid Cache-Aside Cloud Storage Mirroring, Pre-Flight Quota Gatekeeping, Stateless-to-Stateful Serverless Bridging.
+
+---
+
 ## Summary Matrix
 
 | Failure Mode | Deep-Tech Root Cause | Remediation Primitive | CS/AI Engineering Domain |
@@ -202,3 +211,4 @@ This document presents a deep-tech architectural retrospective of the engineerin
 | Score Volatility | Uncalibrated LLM heuristics | Quantitative Scoring Rubric | Heuristic Anchor Injection |
 | Cross-Doc Misattribution | Undifferentiated multi-document corpus | `DocumentRole` typed context routing | Multi-Document Semantic Scoping |
 | Closed-World RAG Gap | Missing parent statutes outside vector store | Asymmetric Google Search + Provenance Penalty | Open-World Grounding Augmentation |
+| Ephemeral Serverless Loss | Stateless Cloud Run instance recycling | Hybrid SQLite-GCS Mirroring & Quota Gatekeeper | Stateless-to-Stateful Serverless Bridging |

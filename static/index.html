@@ -3,209 +3,501 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Policy Red Team</title>
+    <title>Policy Red Team — Automated Regulatory Robustness Testing</title>
     <link rel="stylesheet" href="/static/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <!-- Authentication Overlay -->
-    <div id="auth-overlay" class="overlay">
-        <div class="auth-card glass-panel">
-            <span class="icon-large">⚖️</span>
-            <h2>Policy Red Team</h2>
-            <p class="subtitle">Beta Access — Enter password to continue</p>
-            <form id="auth-form">
-                <input type="password" id="password-input" placeholder="Enter access password..." required>
-                <button type="submit" class="btn-primary">Enter →</button>
-            </form>
-            <div id="auth-error" class="error-text hidden">Incorrect password.</div>
+    <!-- ====================================================================
+         1. Log On to Windows Style Authentication Dialog
+         ==================================================================== -->
+    <div id="auth-overlay" class="overlay-modal">
+        <div class="window window-dialog">
+            <div class="title-bar">
+                <div class="title-bar-text">
+                    <span>🔑</span> Log On to Policy Red Team
+                </div>
+                <div class="title-bar-controls">
+                    <button class="title-btn close" id="btn-dialog-close">✕</button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 28px;">⚖️</span>
+                    <div>
+                        <strong style="font-size: 12px; color: #0a246a;">Policy Red Team v2.4</strong><br>
+                        <span style="color: #444;">Adversarial Regulatory Robustness Testing Platform</span>
+                    </div>
+                </div>
+
+                <!-- Scope / Purpose Clarification Box -->
+                <fieldset class="classic-groupbox" style="background: #fdfdfd; margin-bottom: 8px;">
+                    <legend>System Scope & Purpose</legend>
+                    <div style="font-size: 10.5px; line-height: 1.35; color: #333;">
+                        <p style="margin-bottom: 4px;">
+                            <strong>✅ What it IS:</strong> An adversarial AI stress-testing platform (ADK Attacker vs. Defender vs. Judge) that audits Pakistani statutory policies and bylaws to discover regulatory loopholes, compliance evasions, and enforcement gaps.
+                        </p>
+                        <p>
+                            <strong>❌ What it IS NOT:</strong> Not a general legal advice bot, not a case-law / judicial precedent search engine, and not an open-ended general chat assistant.
+                        </p>
+                    </div>
+                </fieldset>
+
+                <form id="auth-form">
+                    <fieldset class="classic-groupbox">
+                        <legend>Enter Access Passcode</legend>
+                        <label for="password-input">User Passcode / Master Admin Key:</label>
+                        <input type="password" id="password-input" placeholder="e.g. DEMO-SAMPLE-2026 (or enter your assigned passcode)" required autofocus>
+                        <small style="color: #0a246a; display: block; margin-top: 3px;">💡 <em>Tip: Enter <strong>DEMO-SAMPLE-2026</strong> to explore with pre-loaded sample data.</em></small>
+                    </fieldset>
+
+                    <div id="auth-error" class="error-banner hidden">Invalid passcode. Please check your credentials.</div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px;">
+                        <button type="submit" class="btn-classic btn-default" style="min-width: 75px;">OK</button>
+                        <button type="button" id="btn-auth-cancel" class="btn-classic" style="min-width: 75px;">Cancel</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
-    <!-- Main App Layout -->
-    <div id="app-container" class="hidden">
-        <header class="app-header">
-            <span class="header-icon">⚖️</span>
-            <h1>Policy Red Team</h1>
-            <span class="badge">Beta</span>
-        </header>
+    <!-- ====================================================================
+         2. Post-Login User Guide & Document Suitability Modal
+         ==================================================================== -->
+    <div id="instructions-modal" class="overlay-modal hidden">
+        <div class="window window-dialog-wide">
+            <div class="title-bar">
+                <div class="title-bar-text">
+                    <span>📖</span> Getting Started — Testing Guidelines & Document Suitability
+                </div>
+                <div class="title-bar-controls">
+                    <button class="title-btn close" id="btn-close-instructions">✕</button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="notice-box">
+                    <span class="notice-icon">ℹ️</span>
+                    <div>
+                        <strong>How to use this platform:</strong> The system deploys an adversarial <strong>AttackerAgent</strong> to exploit ambiguous language, while a <strong>DefenderAgent</strong> cites qualifying clauses and superior statutes. A senior <strong>JudgeAgent</strong> evaluates the debate under Pakistan statutory law.
+                    </div>
+                </div>
 
-        <div class="banner-info">
-            <strong>🇵🇰 Beta Notice — Pakistan Laws Only</strong><br>
-            This tool is designed specifically for <strong>Pakistani laws, regulations, and statutory instruments</strong> 
-            (federal acts, provincial statutes, and municipal bylaws). Analysis accuracy is optimised for Pakistan's legal framework. Results for other jurisdictions may be unreliable.<br><br>
-            <strong>🧪 Active Testing Phase</strong> — We value your feedback! After running an analysis, please use the feedback form at the bottom of the page.
+                <!-- Document Guidelines Grid -->
+                <div class="guidelines-grid">
+                    <div class="guideline-box good">
+                        <strong style="color: #007700;">✅ Optimal Documents to Audit</strong>
+                        <ul>
+                            <li><strong>Subordinate Regulations & Bylaws:</strong> Building codes, municipal traffic regulations, zoning rules.</li>
+                            <li><strong>Statutory S.R.O.s & Notifications:</strong> Tax exemptions, customs schedules, tariff directives.</li>
+                            <li><strong>Compliance Policies:</strong> Clear operational duties, quantitative thresholds, timelines, or penalty provisions.</li>
+                            <li><strong>Parent Acts (as Supporting doc):</strong> The superior Act granting statutory rule-making power.</li>
+                        </ul>
+                    </div>
+
+                    <div class="guideline-box bad">
+                        <strong style="color: #bb0000;">❌ Incompatible / Inefficient Documents</strong>
+                        <ul>
+                            <li><strong>High-Level Policy Visions:</strong> Aspirational strategy papers (e.g. "Vision 2030") with no binding legal clauses.</li>
+                            <li><strong>Judicial Case Law / Court Judgements:</strong> Court rulings require jurisprudence synthesis; this tool audits statutory texts.</li>
+                            <li><strong>Un-OCRed Scanned PDFs:</strong> Scanned photocopies without readable text cannot be parsed.</li>
+                            <li><strong>Non-Pakistani Statutes:</strong> Foreign laws lack local statutory grounding and produce lower confidence verdicts.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div style="background: #fbfbfb; border: 1px inset #999; padding: 6px 8px; margin-bottom: 8px; font-size: 11px;">
+                    <strong>Quick Workflow:</strong>
+                    1. Upload the target regulation in <strong>🎯 Target Policy</strong> &nbsp;·&nbsp;
+                    2. Upload governing Act in <strong>🛡️ Parent Statute</strong> (optional) &nbsp;·&nbsp;
+                    3. Click <strong>Run Red Team Analysis</strong> (3–5 min debate).
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 6px;">
+                    <button type="button" id="btn-ack-instructions" class="btn-classic btn-default" style="min-width: 120px; font-weight: bold;">
+                        ✔️ Got it — Enter Platform
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
+         3. Main Desktop Application Window
+         ==================================================================== -->
+    <div id="app-window" class="window hidden">
+        <!-- Titlebar -->
+        <div class="title-bar">
+            <div class="title-bar-text">
+                <span>⚖️</span> Policy Red Team — Automated Regulatory Robustness Testing [v2.4]
+            </div>
+            <div class="title-bar-controls">
+                <button class="title-btn">_</button>
+                <button class="title-btn">□</button>
+                <button class="title-btn close" id="btn-window-close">✕</button>
+            </div>
         </div>
 
-        <div class="main-grid">
-            <!-- Left Column: Inputs -->
-            <div class="col-left glass-panel">
-                <h3 class="section-label">Upload Policy PDFs</h3>
-                
-                <form id="upload-form">
-                    <!-- File Upload Area -->
-                    <div class="file-drop-area" id="drop-area">
-                        <input type="file" id="file-input" accept="application/pdf" multiple>
-                        <p>Drag & drop PDFs here, or click to browse.</p>
-                        <small>Max 2 PDF files · Max 80 pages total</small>
-                    </div>
-                    <ul id="file-list" class="file-list"></ul>
+        <!-- Menu Bar -->
+        <div class="menu-bar">
+            <div class="menu-item" id="menu-file"><u>F</u>ile</div>
+            <div class="menu-item" id="menu-audit"><u>A</u>udit</div>
+            <div class="menu-item" id="menu-reports"><u>R</u>eports</div>
+            <div class="menu-item" id="menu-admin"><u>A</u>dmin</div>
+            <div class="menu-item" id="menu-help"><u>H</u>elp (User Guide)</div>
+        </div>
 
-                    <hr class="divider">
+        <!-- Tab Control Strip -->
+        <div class="tab-strip">
+            <button class="tab-button active" data-tab="tab-audit">
+                <span>🛡️</span> Policy Audit
+            </button>
+            <button class="tab-button" data-tab="tab-past-reports">
+                <span>📁</span> My Past Reports
+            </button>
+            <button class="tab-button hidden" id="tab-btn-admin" data-tab="tab-admin">
+                <span>👑</span> Administrator Console
+            </button>
+        </div>
 
-                    <!-- Settings -->
-                    <details class="settings-details">
-                        <summary>⚙️ Focus & Target Settings (Optional)</summary>
-                        <div class="settings-content">
-                            <label>Jurisdiction Level</label>
-                            <select id="jurisdiction_level" name="jurisdiction_level">
-                                <option value="">Auto-detect</option>
-                                <option value="Federal">Federal</option>
-                                <option value="Provincial">Provincial</option>
-                                <option value="Municipal">Municipal</option>
-                            </select>
+        <!-- Window Body -->
+        <div class="window-body">
 
-                            <label>Jurisdiction</label>
-                            <input type="text" id="jurisdiction" name="jurisdiction" placeholder="Auto-detect (e.g., Pakistan)">
+            <!-- ================================================================
+                 TAB 1: Policy Audit
+                 ================================================================ -->
+            <div id="tab-audit" class="tab-content">
+                <div class="two-col-grid">
+                    <!-- Left Column: Inputs -->
+                    <div class="col-left">
+                        <form id="upload-form">
+                            <!-- Dual PDF Ingestion Zones -->
+                            <fieldset class="classic-groupbox">
+                                <legend>Policy PDF Ingestion (Dual Scoping)</legend>
+                                
+                                <div class="dual-ingest-grid">
+                                    <!-- Ingestion Zone 1: Target Policy -->
+                                    <div class="ingest-drop-box" id="target-drop-box">
+                                        <input type="file" id="target-file-input" accept="application/pdf">
+                                        <span class="ingest-badge badge-target">🎯 TARGET POLICY (Required)</span>
+                                        <p style="font-weight: bold; font-size: 11px; margin: 2px 0;">Click or Drop PDF</p>
+                                        <small style="color: #666; font-size: 10px;">Subordinate bylaw/rule to stress-test for loopholes</small>
+                                        <div id="target-file-badge" class="ingest-file-card hidden">
+                                            <span id="target-file-name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">-</span>
+                                            <button type="button" class="btn-classic btn-danger" style="padding: 0 4px; font-size: 9px;" id="btn-remove-target">✕</button>
+                                        </div>
+                                    </div>
 
-                            <label>Target Entity</label>
-                            <input type="text" id="target_entity" name="target_entity" placeholder="Auto-detect (e.g., Regulated Entities)">
+                                    <!-- Ingestion Zone 2: Parent Statute -->
+                                    <div class="ingest-drop-box" id="parent-drop-box">
+                                        <input type="file" id="parent-file-input" accept="application/pdf">
+                                        <span class="ingest-badge badge-parent">🛡️ PARENT STATUTE (Optional)</span>
+                                        <p style="font-weight: bold; font-size: 11px; margin: 2px 0;">Click or Drop PDF</p>
+                                        <small style="color: #666; font-size: 10px;">Superior parent Act for statutory defenses</small>
+                                        <div id="parent-file-badge" class="ingest-file-card hidden">
+                                            <span id="parent-file-name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">-</span>
+                                            <button type="button" class="btn-classic btn-danger" style="padding: 0 4px; font-size: 9px;" id="btn-remove-parent">✕</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <small style="display: block; color: #666; text-align: center; font-size: 10px;">Combined limit: Max 80 pages · Standard text PDFs only</small>
+                            </fieldset>
 
-                            <label>Custom Focus Instructions</label>
-                            <textarea id="custom_instructions" name="custom_instructions" rows="3" placeholder="Optional guidance for the Attacker agent..."></textarea>
+                            <!-- Audit Parameters -->
+                            <fieldset class="classic-groupbox">
+                                <legend>Audit Configuration & Focus</legend>
+                                
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                    <div>
+                                        <label for="jurisdiction_level">Jurisdiction Level:</label>
+                                        <select id="jurisdiction_level" name="jurisdiction_level">
+                                            <option value="">Auto-detect</option>
+                                            <option value="Federal">Federal</option>
+                                            <option value="Provincial">Provincial</option>
+                                            <option value="Municipal">Municipal</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="jurisdiction">Jurisdiction:</label>
+                                        <input type="text" id="jurisdiction" name="jurisdiction" placeholder="Auto-detect (e.g. Islamabad)">
+                                    </div>
+                                </div>
 
-                            <div class="toggle-container" style="margin-top: 1rem;">
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; color: var(--text-main);">
-                                    <input type="checkbox" id="enable_web_search" name="enable_web_search" style="width: auto; cursor: pointer;">
-                                    🌐 Enable Web Search for Defender (discovers un-uploaded parent Acts)
-                                </label>
+                                <label for="target_entity">Target Entity Exploiting Policy:</label>
+                                <input type="text" id="target_entity" name="target_entity" placeholder="Auto-detect (e.g. Real Estate Developers)">
+
+                                <label for="custom_instructions">Custom Exploitation Directive (Optional):</label>
+                                <textarea id="custom_instructions" name="custom_instructions" rows="2" placeholder="e.g. Focus on penalty evasion, jurisdictional arbitrage, or height exemptions..."></textarea>
+
+                                <div style="margin-top: 6px;">
+                                    <label style="display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; font-size: 10.5px;">
+                                        <input type="checkbox" id="enable_web_search" name="enable_web_search">
+                                        🌐 Enable Web Search for Defender (retrieves un-uploaded parent Acts)
+                                    </label>
+                                </div>
+                            </fieldset>
+
+                            <!-- Run Action -->
+                            <div style="margin-top: 6px;">
+                                <button type="submit" id="run-btn" class="btn-classic btn-default" style="width: 100%; padding: 5px; font-weight: bold; font-size: 11px;" disabled>
+                                    ▶ Run Red Team Analysis
+                                </button>
+                                <div id="quota-warning-banner" class="error-banner hidden" style="text-align: center; margin-top: 4px;"></div>
                             </div>
-                        </div>
-                    </details>
-
-                    <hr class="divider">
-
-                    <button type="submit" id="run-btn" class="btn-primary btn-large" disabled>▶ Run Red Team Analysis</button>
-                    <p class="helper-text center">⏱️ Analysis typically takes <strong>3–8 minutes</strong>. Keep this tab open.</p>
-                </form>
-            </div>
-
-            <!-- Right Column: Results -->
-            <div class="col-right">
-                
-                <!-- Loading State -->
-                <div id="loading-state" class="glass-panel hidden">
-                    <h3 class="section-label">Analysis Progress</h3>
-                    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-                    <div class="status-steps" id="status-steps">
-                        <p class="active">📄 <strong>Step 1 / 3</strong> — Uploading and Parsing PDFs...</p>
-                        <p class="pending">🤖 <strong>Step 2 / 3</strong> — Running multi-agent red team analysis...</p>
-                        <p class="pending">📊 <strong>Step 3 / 3</strong> — Rendering report...</p>
-                    </div>
-                </div>
-
-                <!-- Results State -->
-                <div id="results-state" class="hidden">
-                    <h3 class="section-label">Analysis Results</h3>
-                    
-                    <!-- Audit Context & Arguments Card -->
-                    <div class="result-card">
-                        <h4>📋 Audit Arguments & Session Context</h4>
-                        <div class="meta-grid" id="res-arguments"></div>
-                    </div>
-
-                    <div class="result-card">
-                        <h4>🎯 Core Finding</h4>
-                        <p class="meta-stats">
-                            <strong>Exploit Vector:</strong> <span id="res-vector"></span> &nbsp;·&nbsp;
-                            <strong>Severity:</strong> <span id="res-severity" class="badge-severity"></span> &nbsp;·&nbsp;
-                            <strong>Confidence:</strong> <span id="res-confidence"></span>
-                        </p>
-                        <p class="mt-2" id="res-summary"></p>
-                    </div>
-
-                    <div class="impact-grid">
-                        <div class="result-card">
-                            <h4>👥 Citizen Impact</h4>
-                            <p>Harm: <strong id="res-cit-harm"></strong> · Benefit: <strong id="res-cit-ben"></strong></p>
-                            <p class="mt-1" id="res-cit-pop"></p>
-                        </div>
-                        <div class="result-card">
-                            <h4>🏢 Business Impact</h4>
-                            <p>Harm: <strong id="res-bus-harm"></strong> · Benefit: <strong id="res-bus-ben"></strong></p>
-                            <p class="mt-1" id="res-bus-pop"></p>
-                        </div>
-                    </div>
-
-                    <div class="result-card">
-                        <h4>🔧 Remediation Recommendation</h4>
-                        <p id="res-remediation"></p>
-                    </div>
-
-                    <!-- Details Expanders -->
-                    <details class="settings-details result-details" open>
-                        <summary>🧠 Judge Chain-of-Thought & Reasoning</summary>
-                        <div class="settings-content">
-                            <pre id="res-judge-reasoning" style="white-space: pre-wrap; font-family: inherit; font-size: 0.88rem; color: #c9d1d9;"></pre>
-                        </div>
-                    </details>
-
-                    <details class="settings-details result-details">
-                        <summary>📜 Debate Transcript</summary>
-                        <div class="settings-content" id="res-transcript"></div>
-                    </details>
-                    
-                    <details class="settings-details result-details">
-                        <summary>📚 Statutory Citations</summary>
-                        <div class="settings-content" id="res-citations"></div>
-                    </details>
-
-                    <details class="settings-details result-details">
-                        <summary>🔍 Search Queries & Retrieval Provenance</summary>
-                        <div class="settings-content" id="res-provenance"></div>
-                    </details>
-
-                    <details class="settings-details result-details">
-                        <summary>🤖 Model Infrastructure & Reproducibility</summary>
-                        <div class="settings-content" id="res-models"></div>
-                    </details>
-
-                    <div class="download-grid mt-3">
-                        <button id="download-json-btn" class="btn-secondary">📥 Download JSON</button>
-                        <button id="download-txt-btn" class="btn-secondary">📄 Download Text (.txt)</button>
-                        <button id="download-md-btn" class="btn-secondary">📝 Download Markdown (.md)</button>
-                    </div>
-                    
-                    <hr class="divider">
-                    
-                    <h3 class="section-label">Submit Feedback</h3>
-                    <div class="result-card">
-                        <p class="mb-2"><strong>💬 How was this analysis?</strong> Your feedback shapes this system.</p>
-                        <form id="feedback-form" class="feedback-grid">
-                            <div class="fb-controls">
-                                <label>Rating (1-5)</label>
-                                <input type="number" id="fb-rating" min="1" max="5" value="4">
-                                <label>Category</label>
-                                <select id="fb-category">
-                                    <option>Accuracy Issue</option>
-                                    <option>Missing Loophole</option>
-                                    <option>Hallucinated Citation</option>
-                                    <option>UI / UX Issue</option>
-                                    <option>Feature Request</option>
-                                    <option>General Feedback</option>
-                                </select>
-                            </div>
-                            <div class="fb-message">
-                                <label>Message</label>
-                                <textarea id="fb-message" rows="4" required></textarea>
-                            </div>
-                            <button type="submit" class="btn-primary" style="grid-column: 1 / -1">Submit Feedback →</button>
                         </form>
                     </div>
+
+                    <!-- Right Column: Results Console -->
+                    <div class="col-right">
+                        <!-- Loading State -->
+                        <div id="loading-state" class="hidden">
+                            <fieldset class="classic-groupbox">
+                                <legend>Analysis Execution Monitor</legend>
+                                <p class="step-label" id="step-label">Step 1 / 3 — Ingesting policy document and building FAISS vector index...</p>
+                                <div class="progress-container">
+                                    <div class="progress-bar-segmented" id="progress-fill"></div>
+                                </div>
+                                <small style="color: #555;">⏱️ Multi-agent debate runs asynchronously. Average time: 3–5 minutes.</small>
+                            </fieldset>
+                        </div>
+
+                        <!-- Results View -->
+                        <div id="results-state" class="hidden">
+                            <!-- Core Finding -->
+                            <fieldset class="classic-groupbox">
+                                <legend>🎯 Core Regulatory Vulnerability</legend>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; border-bottom: 1px solid #ccc; padding-bottom: 4px;">
+                                    <div>
+                                        <strong>Exploit Vector:</strong> <span id="res-vector">-</span> &nbsp;|&nbsp;
+                                        <strong>Confidence:</strong> <span id="res-confidence">-</span>
+                                    </div>
+                                    <div>
+                                        <strong>Severity:</strong> <span id="res-severity" class="badge-sev">-</span>
+                                    </div>
+                                </div>
+                                <div id="res-summary" style="background: #ffffff; border: 1px inset #999; padding: 5px 7px; font-size: 11px;"></div>
+                            </fieldset>
+
+                            <!-- Stakeholder Impact Matrix -->
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                <fieldset class="classic-groupbox">
+                                    <legend>👥 Citizen Impact</legend>
+                                    <p>Harm: <strong id="res-cit-harm">0.0</strong> &nbsp;·&nbsp; Benefit: <strong id="res-cit-ben">0.0</strong></p>
+                                    <p id="res-cit-pop" style="margin-top: 2px; color: #333; font-size: 10px;"></p>
+                                </fieldset>
+                                <fieldset class="classic-groupbox">
+                                    <legend>🏢 Business Impact</legend>
+                                    <p>Harm: <strong id="res-bus-harm">0.0</strong> &nbsp;·&nbsp; Benefit: <strong id="res-bus-ben">0.0</strong></p>
+                                    <p id="res-bus-pop" style="margin-top: 2px; color: #333; font-size: 10px;"></p>
+                                </fieldset>
+                            </div>
+
+                            <!-- Remediation -->
+                            <fieldset class="classic-groupbox">
+                                <legend>🔧 Legislative Remediation Recommendation</legend>
+                                <div id="res-remediation" style="background: #ffffff; border: 1px inset #999; padding: 5px 7px;"></div>
+                            </fieldset>
+
+                            <!-- Expandable Details -->
+                            <details style="margin-bottom: 6px;">
+                                <summary style="font-weight: bold; cursor: pointer;">🧠 Senior Judge Chain-of-Thought & Reasoning</summary>
+                                <pre id="res-judge-reasoning" style="background: #ffffff; border: 1px inset #999; padding: 5px; white-space: pre-wrap; font-size: 11px; max-height: 150px; overflow: auto; margin-top: 3px;"></pre>
+                            </details>
+
+                            <details style="margin-bottom: 6px;">
+                                <summary style="font-weight: bold; cursor: pointer;">📜 Adversarial Debate Transcript (Attacker vs Defender)</summary>
+                                <div id="res-transcript" style="max-height: 180px; overflow: auto; margin-top: 3px;"></div>
+                            </details>
+
+                            <details style="margin-bottom: 6px;">
+                                <summary style="font-weight: bold; cursor: pointer;">📚 Statutory Citations (Ground Truth)</summary>
+                                <div id="res-citations" style="max-height: 150px; overflow: auto; margin-top: 3px;"></div>
+                            </details>
+
+                            <details style="margin-bottom: 6px;">
+                                <summary style="font-weight: bold; cursor: pointer;">🔍 Search Queries & Retrieval Provenance</summary>
+                                <div id="res-provenance" style="max-height: 150px; overflow: auto; margin-top: 3px;"></div>
+                            </details>
+
+                            <!-- Export Buttons -->
+                            <div style="display: flex; gap: 6px; margin-top: 8px;">
+                                <button id="download-json-btn" class="btn-classic">📥 Export JSON</button>
+                                <button id="download-txt-btn" class="btn-classic">📄 Export Text (.txt)</button>
+                                <button id="download-md-btn" class="btn-classic">📝 Export Markdown (.md)</button>
+                            </div>
+
+                            <!-- Feedback Form -->
+                            <fieldset class="classic-groupbox" style="margin-top: 8px;">
+                                <legend>💬 Tester Evaluation & Feedback</legend>
+                                <form id="feedback-form">
+                                    <div style="display: flex; gap: 6px; margin-bottom: 4px;">
+                                        <div style="width: 80px;">
+                                            <label>Rating (1-5):</label>
+                                            <input type="number" id="fb-rating" min="1" max="5" value="4">
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <label>Category:</label>
+                                            <select id="fb-category">
+                                                <option>Accuracy Issue</option>
+                                                <option>Missing Loophole</option>
+                                                <option>Hallucinated Citation</option>
+                                                <option>UI / UX Issue</option>
+                                                <option>Feature Request</option>
+                                                <option>General Feedback</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <label>Comments / Observations:</label>
+                                    <textarea id="fb-message" rows="2" placeholder="Qualitative feedback on verdict accuracy or loophole validity..." required></textarea>
+                                    <div style="margin-top: 4px; text-align: right;">
+                                        <button type="submit" class="btn-classic">Submit Feedback →</button>
+                                    </div>
+                                </form>
+                            </fieldset>
+                        </div>
+
+                        <!-- Idle Initial State -->
+                        <div id="idle-state">
+                            <fieldset class="classic-groupbox" style="text-align: center; padding: 36px 16px;">
+                                <legend>Audit Output Console</legend>
+                                <span style="font-size: 28px;">📄</span>
+                                <p style="margin-top: 6px; font-weight: bold; color: #444;">No audit currently running.</p>
+                                <p style="color: #666; font-size: 11px;">Drop target policy on the left and click <strong>"Run Red Team Analysis"</strong> to begin.</p>
+                            </fieldset>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 TAB 2: My Past Reports
+                 ================================================================ -->
+            <div id="tab-past-reports" class="tab-content hidden">
+                <fieldset class="classic-groupbox">
+                    <legend>My Historical Audit Reports</legend>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span id="past-reports-count">Loading your generated reports...</span>
+                        <button id="btn-refresh-user-reports" class="btn-classic">🔄 Refresh List</button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="classic-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Policy Document</th>
+                                    <th>Jurisdiction</th>
+                                    <th>Severity</th>
+                                    <th>Exploit Vector</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-reports-tbody">
+                                <tr><td colspan="6" style="text-align: center; color: #666;">No past reports recorded for this passcode.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </fieldset>
+            </div>
+
+            <!-- ================================================================
+                 TAB 3: Administrator Console (Admin Only)
+                 ================================================================ -->
+            <div id="tab-admin" class="tab-content hidden">
+                <div class="notice-box">
+                    <span class="notice-icon">👑</span>
+                    <div>
+                        <strong>Administrator Console:</strong> Manage test user passcodes, configure report generation limits,
+                        and inspect all reports generated across the entire user base.
+                    </div>
                 </div>
 
+                <!-- Passcode Generator -->
+                <fieldset class="classic-groupbox">
+                    <legend>Generate New Test Passcode</legend>
+                    <form id="admin-create-passcode-form">
+                        <div style="display: grid; grid-template-columns: 2fr 1fr 2fr auto; gap: 6px; align-items: flex-end;">
+                            <div>
+                                <label>Tester Name / Organization Label:</label>
+                                <input type="text" id="admin-new-label" placeholder="e.g. Fatima — Law Dept" required>
+                            </div>
+                            <div>
+                                <label>Report Limit:</label>
+                                <input type="number" id="admin-new-limit" min="1" max="100" value="5" required>
+                            </div>
+                            <div>
+                                <label>Custom Passcode (Optional):</label>
+                                <input type="text" id="admin-new-code" placeholder="Auto-generated if blank">
+                            </div>
+                            <div>
+                                <button type="submit" class="btn-classic btn-default" style="height: 23px;">➕ Create Passcode</button>
+                            </div>
+                        </div>
+                    </form>
+                </fieldset>
+
+                <!-- Active Passcodes Table -->
+                <fieldset class="classic-groupbox">
+                    <legend>Active Test User Passcodes & Live Quotas</legend>
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 4px;">
+                        <button id="btn-refresh-passcodes" class="btn-classic">🔄 Refresh Passcodes</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="classic-table">
+                            <thead>
+                                <tr>
+                                    <th>Passcode</th>
+                                    <th>Assigned Label</th>
+                                    <th>Role</th>
+                                    <th>Reports Used</th>
+                                    <th>Limit</th>
+                                    <th>Created At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-passcodes-tbody">
+                                <tr><td colspan="7" style="text-align: center;">Loading passcodes...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </fieldset>
+
+                <!-- Master Audit Ledger -->
+                <fieldset class="classic-groupbox">
+                    <legend>Master Audit Ledger (All Users' Reports)</legend>
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 4px;">
+                        <button id="btn-refresh-all-reports" class="btn-classic">🔄 Refresh Master Ledger</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="classic-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>User Label</th>
+                                    <th>Passcode</th>
+                                    <th>Policy Document</th>
+                                    <th>Severity</th>
+                                    <th>Exploit Vector</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-all-reports-tbody">
+                                <tr><td colspan="7" style="text-align: center;">Loading master reports ledger...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </fieldset>
             </div>
+
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-pane fill" id="status-text">Ready</div>
+            <div class="status-pane" id="status-user">User: Anonymous</div>
+            <div class="status-pane" id="status-quota">Quota: -</div>
+            <div class="status-pane">Pakistan Law RAG</div>
+            <div class="status-pane">ADK 2.0</div>
         </div>
     </div>
 

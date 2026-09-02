@@ -48,9 +48,14 @@ httpx
 # --- Configuration ---
 python-dotenv
 
+# --- Storage & PDF Extraction ---
+pypdf
+google-cloud-storage
+
 # --- Web Framework (FastAPI) ---
 fastapi
 uvicorn
 python-multipart
 # --- Testing ---
 pytest
+

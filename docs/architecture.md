@@ -261,12 +261,31 @@ By compressing raw MCP tool search outputs into structured 150–200 token `Turn
 
 ### 7.2 Automated Pytest Verification Suite
 
-Automated testing is executed via `pytest tests/ -v`. All 16 test cases across the system boundaries pass cleanly:
+Automated testing is executed via `pytest tests/ -v`. All 32 test cases across system boundaries pass cleanly:
 
 | Test Module | Target Primitives | Test Cases | Status |
 |---|---|---|---|
-| `tests/test_embeddings.py` | `src/embeddings.py` | `test_mock_fallback_when_no_gcp_project`, `test_explicit_mock_provider` | ✅ 2/2 Passed |
-| `tests/test_state.py` | `src/orchestration/state.py` | `test_creation_and_immutability`, `test_turn_summary_creation`, `test_state_defaults_and_immutability`, `test_to_session_dict`, `test_from_session_dict_reconstruction` | ✅ 5/5 Passed |
-| `tests/test_tools.py` | `src/orchestration/tools.py` | `test_extracts_citations_from_standard_response`, `test_extracts_source_document`, `test_extracts_faiss_scores`, `test_extracts_page_numbers`, `test_extracts_statutory_section_ids`, `test_handles_response_without_section_ids`, `test_handles_empty_response`, `test_quoted_text_max_length`, `test_citation_immutability` | ✅ 9/9 Passed |
-| **Total** | **System Boundaries** | **16 Automated Test Cases** | **✅ 16/16 Passed (100%)** |
+| `tests/test_api_auth.py` | `main.py` (FastAPI Endpoints) | Master Admin auth, demo tester auth, invalid passcode gating, user reports scoping, admin authorization, passcode generation/deletion | ✅ 5/5 Passed |
+| `tests/test_db.py` | `src/db.py` (Persistence & Quotas) | SQLite initialization, passcode verification, quota limits, pre-flight analysis gating, report persistence, admin quota adjustment | ✅ 8/8 Passed |
+| `tests/test_state.py` | `src/orchestration/state.py` | Document roles serialization, web search toggle, Pydantic immutability, `TurnSummary` compression, session state serialization | ✅ 8/8 Passed |
+| `tests/test_tools.py` | `src/orchestration/tools.py` | Regex AST metadata parser, FAISS score parsing, section ID extraction, page number extraction, empty response fallback, quote capping | ✅ 9/9 Passed |
+| `tests/test_embeddings.py` | `src/embeddings.py` | Vertex AI text-embedding-004 initialization and credential failure validation | ✅ 2/2 Passed |
+| **Total** | **Full System Boundaries** | **32 Automated Test Cases** | **✅ 32/32 Passed (100%)** |
+
+---
+
+## 8. Multi-Tenant Access Control & Hybrid Cloud Run Persistence
+
+To enable secure beta evaluation across distributed testing groups while operating on serverless, ephemeral Google Cloud Run infrastructure:
+
+### 8.1 Data Layer Architecture (`src/db.py`)
+- **Fast Local Execution:** SQLite configured with Write-Ahead Logging (WAL mode) handles concurrent session validation and local report indexing.
+- **Durable Serverless Bridging:** Whenever passcodes are created or audit reports are generated, they are immediately synchronized to Google Cloud Storage (`gs://{GCS_BUCKET}/auth/passcodes.json` and `gs://.../reports/reports_index.json`).
+- **Cold-Start Hydration:** On container startup or new revision redeployments, `init_db()` automatically restores passcodes, quotas, and report histories from GCS into SQLite.
+- **Uploaded Document Archival:** Uploaded target and parent PDFs are preserved in `gs://{GCS_BUCKET}/uploads/`, ensuring no documents are lost across autoscaling events.
+
+### 8.2 Role-Based Quota Gating (RBAC)
+- **Master Administrator:** Configured via `APP_PASSWORD`, grants unlimited audit quota and full access to the Administrator Console (passcode creation, quota adjustments, and cross-user report auditing).
+- **Test Users:** Authenticate via assigned passcodes with strictly enforced report quotas (e.g. 5 audits). Analysis executions are pre-flight validated; when exhausted, requests are blocked with advisory prompts.
+- **Sample Demonstration Mode:** Passcode `DEMO-SAMPLE-2026` provides immediate access to pre-seeded real-world audit data (CDA Speed Breakers) for instant zero-friction exploration.
 

@@ -1,248 +1,472 @@
+// ==========================================================================
+// Policy Red Team — 2002–2007 Classic UI & Multi-User App Logic (Optimized)
+// ==========================================================================
+
+let currentUser = null;
+let currentReportJson = null;
 let currentSessionId = "";
 
-// Auth Logic
-const authForm = document.getElementById('auth-form');
-const pwdInput = document.getElementById('password-input');
-const authError = document.getElementById('auth-error');
+// Dual file state
+let targetFile = null;
+let parentFile = null;
+
+// DOM Elements: Authentication & Guidance
 const authOverlay = document.getElementById('auth-overlay');
-const appContainer = document.getElementById('app-container');
+const authForm = document.getElementById('auth-form');
+const passwordInput = document.getElementById('password-input');
+const authError = document.getElementById('auth-error');
+const instructionsModal = document.getElementById('instructions-modal');
+const btnAckInstructions = document.getElementById('btn-ack-instructions');
+const btnCloseInstructions = document.getElementById('btn-close-instructions');
+const appWindow = document.getElementById('app-window');
+const tabButtons = document.querySelectorAll('.tab-button');
+const tabContents = document.querySelectorAll('.tab-content');
+const tabBtnAdmin = document.getElementById('tab-btn-admin');
+
+// Status Bar Elements
+const statusText = document.getElementById('status-text');
+const statusUser = document.getElementById('status-user');
+const statusQuota = document.getElementById('status-quota');
+
+// Audit Form Elements
+const uploadForm = document.getElementById('upload-form');
+const targetDropBox = document.getElementById('target-drop-box');
+const targetFileInput = document.getElementById('target-file-input');
+const targetFileBadge = document.getElementById('target-file-badge');
+const targetFileName = document.getElementById('target-file-name');
+const btnRemoveTarget = document.getElementById('btn-remove-target');
+
+const parentDropBox = document.getElementById('parent-drop-box');
+const parentFileInput = document.getElementById('parent-file-input');
+const parentFileBadge = document.getElementById('parent-file-badge');
+const parentFileName = document.getElementById('parent-file-name');
+const btnRemoveParent = document.getElementById('btn-remove-parent');
+
+const runBtn = document.getElementById('run-btn');
+const quotaWarningBanner = document.getElementById('quota-warning-banner');
+const loadingState = document.getElementById('loading-state');
+const resultsState = document.getElementById('results-state');
+const idleState = document.getElementById('idle-state');
+const progressFill = document.getElementById('progress-fill');
+const stepLabel = document.getElementById('step-label');
+
+// ==========================================================================
+// 1. Authentication & Session Flow
+// ==========================================================================
+
+async function checkSavedSession() {
+    const savedCode = sessionStorage.getItem('auth_passcode');
+    if (savedCode) {
+        try {
+            const res = await fetch(`/api/user/info?passcode=${encodeURIComponent(savedCode)}`);
+            if (res.ok) {
+                const info = await res.json();
+                loginSuccess(info, false); // Don't re-show popup on page reload
+                return;
+            }
+        } catch (e) {
+            console.error("Session restore failed", e);
+        }
+    }
+    authOverlay.classList.remove('hidden');
+    appWindow.classList.add('hidden');
+}
+
+function loginSuccess(userInfo, showGuide = true) {
+    currentUser = userInfo;
+    sessionStorage.setItem('auth_passcode', userInfo.passcode);
+    authOverlay.classList.add('hidden');
+    appWindow.classList.remove('hidden');
+
+    // Update Status Bar
+    statusUser.textContent = `User: ${userInfo.label}`;
+    updateQuotaDisplay();
+
+    // Reveal Administrator Tab if user is admin
+    if (userInfo.is_admin) {
+        tabBtnAdmin.classList.remove('hidden');
+    } else {
+        tabBtnAdmin.classList.add('hidden');
+    }
+
+    statusText.textContent = "Ready";
+
+    // Check if Sample Demo Mode was entered
+    if (userInfo.passcode === "DEMO-SAMPLE-2026" || userInfo.passcode.toUpperCase().includes("SAMPLE")) {
+        preloadSampleDemo();
+    } else if (showGuide) {
+        // Show Testing Instructions & Guidelines Modal upon entering regular passcode
+        instructionsModal.classList.remove('hidden');
+    }
+}
+
+function preloadSampleDemo() {
+    alert(
+        "🧪 Sample Demonstration Mode Active!\n\n" +
+        "You have logged in using demo credentials (DEMO-SAMPLE-2026).\n\n" +
+        "• A real-world sample regulatory audit (CDA Islamabad Speed Breakers Policy) has been pre-loaded.\n" +
+        "• You can immediately inspect the Attacker vs. Defender debate, statutory citations, and Judge verdicts."
+    );
+
+    // Pre-populate configuration fields
+    const jLevel = document.getElementById('jurisdiction_level');
+    const jDist = document.getElementById('jurisdiction');
+    const tEntity = document.getElementById('target_entity');
+    const cInst = document.getElementById('custom_instructions');
+
+    if (jLevel) jLevel.value = "Municipal";
+    if (jDist) jDist.value = "Islamabad, Pakistan";
+    if (tEntity) tEntity.value = "Real Estate Developers & Housing Societies";
+    if (cInst) cInst.value = "Focus on negative criteria for primary emergency response routes and volume thresholds (>3000 vpd).";
+
+    // Show sample document badges
+    targetFileName.textContent = "🎯 CDA_Speed_Breakers_Policy_2019.pdf (Sample)";
+    targetFileBadge.classList.remove('hidden');
+    parentFileName.textContent = "🛡️ CDA_Ordinance_1960.pdf (Sample)";
+    parentFileBadge.classList.remove('hidden');
+
+    // Automatically load the pre-seeded sample report
+    fetch(`/api/user/reports?passcode=${encodeURIComponent(currentUser.passcode)}`)
+        .then(res => res.json())
+        .then(reports => {
+            if (reports && reports.length > 0) {
+                openReportById(reports[0].report_id);
+            }
+        })
+        .catch(err => console.log("Sample load error:", err));
+}
+
+function updateQuotaDisplay() {
+    if (!currentUser) return;
+    if (currentUser.is_admin || currentUser.report_limit === -1) {
+        statusQuota.textContent = "Quota: Unlimited (Admin)";
+        quotaWarningBanner.classList.add('hidden');
+        if (targetFile) runBtn.disabled = false;
+    } else {
+        const remaining = Math.max(0, currentUser.report_limit - currentUser.reports_used);
+        statusQuota.textContent = `Quota: ${currentUser.reports_used} / ${currentUser.report_limit} Used (${remaining} left)`;
+        
+        if (remaining <= 0) {
+            runBtn.disabled = true;
+            quotaWarningBanner.textContent = `⚠️ Report limit reached (${currentUser.report_limit}/${currentUser.report_limit}). Contact administrator for more quota.`;
+            quotaWarningBanner.classList.remove('hidden');
+        } else {
+            quotaWarningBanner.classList.add('hidden');
+            if (targetFile) runBtn.disabled = false;
+        }
+    }
+}
 
 authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const pwd = pwdInput.value;
-    
+    authError.classList.add('hidden');
+    const pwd = passwordInput.value.trim();
+    if (!pwd) return;
+
     try {
         const formData = new FormData();
         formData.append("password", pwd);
         const res = await fetch('/api/auth', { method: 'POST', body: formData });
         
         if (res.ok) {
-            authOverlay.classList.add('hidden');
-            appContainer.classList.remove('hidden');
-            sessionStorage.setItem('auth_pwd', pwd);
+            const data = await res.json();
+            loginSuccess(data, true);
         } else {
+            const err = await res.json();
+            authError.textContent = err.detail || "Invalid passcode.";
             authError.classList.remove('hidden');
         }
     } catch (err) {
-        authError.textContent = "Network error.";
+        authError.textContent = "Network error connecting to server.";
         authError.classList.remove('hidden');
     }
 });
 
-// File Upload Logic
-const dropArea = document.getElementById('drop-area');
-const fileInput = document.getElementById('file-input');
-const fileList = document.getElementById('file-list');
-const runBtn = document.getElementById('run-btn');
-let selectedFiles = [];
+btnAckInstructions?.addEventListener('click', () => instructionsModal.classList.add('hidden'));
+btnCloseInstructions?.addEventListener('click', () => instructionsModal.classList.add('hidden'));
 
-dropArea.addEventListener('click', () => fileInput.click());
-dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('dragover'); });
-dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
-dropArea.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropArea.classList.remove('dragover');
-    handleFiles(e.dataTransfer.files);
+document.getElementById('btn-auth-cancel')?.addEventListener('click', () => {
+    passwordInput.value = "";
+    authError.classList.add('hidden');
 });
-fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
 
-function handleFiles(files) {
-    if (selectedFiles.length + files.length > 2) {
-        alert("Maximum 2 files allowed.");
+document.getElementById('btn-window-close')?.addEventListener('click', () => {
+    if (confirm("Log out of Policy Red Team?")) {
+        sessionStorage.removeItem('auth_passcode');
+        currentUser = null;
+        authOverlay.classList.remove('hidden');
+        appWindow.classList.add('hidden');
+    }
+});
+
+// ==========================================================================
+// 2. Navigation & Menu Bar Actions
+// ==========================================================================
+
+function switchTab(targetTabId) {
+    tabButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === targetTabId);
+    });
+
+    tabContents.forEach(content => {
+        content.classList.toggle('hidden', content.id !== targetTabId);
+    });
+
+    if (targetTabId === 'tab-past-reports') {
+        loadUserReports();
+    } else if (targetTabId === 'tab-admin') {
+        loadAdminPasscodes();
+        loadAdminAllReports();
+    }
+}
+
+tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+document.getElementById('menu-audit')?.addEventListener('click', () => switchTab('tab-audit'));
+document.getElementById('menu-reports')?.addEventListener('click', () => switchTab('tab-past-reports'));
+document.getElementById('menu-help')?.addEventListener('click', () => instructionsModal.classList.remove('hidden'));
+document.getElementById('menu-admin')?.addEventListener('click', () => {
+    if (currentUser?.is_admin) {
+        switchTab('tab-admin');
+    } else {
+        alert("Access Denied: Administrator privileges required.");
+    }
+});
+
+// ==========================================================================
+// 3. Dual PDF Ingestion Zones (Target vs Parent Statute)
+// ==========================================================================
+
+// Target Policy Setup
+targetDropBox.addEventListener('click', (e) => {
+    if (e.target !== btnRemoveTarget) targetFileInput.click();
+});
+targetDropBox.addEventListener('dragover', (e) => { e.preventDefault(); targetDropBox.style.background = "#eef4ff"; });
+targetDropBox.addEventListener('dragleave', () => { targetDropBox.style.background = "#ffffff"; });
+targetDropBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    targetDropBox.style.background = "#ffffff";
+    if (e.dataTransfer.files.length > 0) assignTargetFile(e.dataTransfer.files[0]);
+});
+targetFileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) assignTargetFile(e.target.files[0]);
+});
+
+function assignTargetFile(file) {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+        alert("Only PDF documents are supported.");
         return;
     }
-    for (let f of files) {
-        if (f.type === "application/pdf") {
-            selectedFiles.push(f);
-        } else {
-            alert("Only PDFs are allowed.");
-        }
+    targetFile = file;
+    targetFileName.textContent = `🎯 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+    targetFileBadge.classList.remove('hidden');
+    updateQuotaDisplay();
+}
+
+btnRemoveTarget.addEventListener('click', (e) => {
+    e.stopPropagation();
+    targetFile = null;
+    targetFileInput.value = "";
+    targetFileBadge.classList.add('hidden');
+    runBtn.disabled = true;
+});
+
+// Parent Statute Setup
+parentDropBox.addEventListener('click', (e) => {
+    if (e.target !== btnRemoveParent) parentFileInput.click();
+});
+parentDropBox.addEventListener('dragover', (e) => { e.preventDefault(); parentDropBox.style.background = "#f0fff0"; });
+parentDropBox.addEventListener('dragleave', () => { parentDropBox.style.background = "#ffffff"; });
+parentDropBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    parentDropBox.style.background = "#ffffff";
+    if (e.dataTransfer.files.length > 0) assignParentFile(e.dataTransfer.files[0]);
+});
+parentFileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) assignParentFile(e.target.files[0]);
+});
+
+function assignParentFile(file) {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+        alert("Only PDF documents are supported.");
+        return;
     }
-    renderFileList();
+    parentFile = file;
+    parentFileName.textContent = `🛡️ ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+    parentFileBadge.classList.remove('hidden');
 }
 
-function renderFileList() {
-    fileList.innerHTML = "";
-    const showRoles = selectedFiles.length === 2;
-    selectedFiles.forEach((file, index) => {
-        const li = document.createElement('li');
-        let roleHtml = '';
-        if (showRoles) {
-            roleHtml = `<select class="role-select" data-index="${index}">
-                <option value="target" ${index === 0 ? 'selected' : ''}>🎯 Target (find loopholes)</option>
-                <option value="supporting" ${index === 1 ? 'selected' : ''}>🛡️ Supporting (defense ref)</option>
-            </select>`;
-        }
-        li.innerHTML = `<span class="file-name-info">📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
-                        ${roleHtml}
-                        <span class="remove-file" onclick="removeFile(${index})">✕</span>`;
-        fileList.appendChild(li);
-    });
-    runBtn.disabled = selectedFiles.length === 0;
-}
-window.removeFile = (index) => {
-    selectedFiles.splice(index, 1);
-    renderFileList();
-};
+btnRemoveParent.addEventListener('click', (e) => {
+    e.stopPropagation();
+    parentFile = null;
+    parentFileInput.value = "";
+    parentFileBadge.classList.add('hidden');
+});
 
-// Form Submission
-const uploadForm = document.getElementById('upload-form');
-const loadingState = document.getElementById('loading-state');
-const resultsState = document.getElementById('results-state');
-const progressFill = document.getElementById('progress-fill');
-const statusSteps = document.getElementById('status-steps').children;
+// ==========================================================================
+// 4. Audit Execution & Progress Simulation
+// ==========================================================================
 
 uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (selectedFiles.length === 0) return;
+    if (!targetFile || !currentUser) {
+        alert("Please upload at least the Target Policy document.");
+        return;
+    }
 
-    // UI Updates
+    // Quota pre-check
+    if (!currentUser.is_admin && currentUser.report_limit !== -1) {
+        if (currentUser.reports_used >= currentUser.report_limit) {
+            alert("Your report generation quota has been reached. Please contact an administrator.");
+            return;
+        }
+    }
+
+    // UI state transitions
     uploadForm.querySelectorAll('button, input, select, textarea').forEach(el => el.disabled = true);
+    idleState.classList.add('hidden');
     resultsState.classList.add('hidden');
     loadingState.classList.remove('hidden');
-    
-    // Fake progress animation
-    progressFill.style.width = "10%";
-    statusSteps[0].className = "active";
-    statusSteps[1].className = "pending";
-    statusSteps[2].className = "pending";
+
+    progressFill.style.width = "15%";
+    stepLabel.textContent = "Step 1 / 3 — Ingesting policy document and building FAISS vector index...";
+    statusText.textContent = "Ingesting documents...";
 
     const formData = new FormData();
-    formData.append("password", sessionStorage.getItem('auth_pwd'));
-    
+    formData.append("password", currentUser.passcode);
+
     const jLevel = document.getElementById('jurisdiction_level').value;
     const jDist = document.getElementById('jurisdiction').value;
     const target = document.getElementById('target_entity').value;
     const inst = document.getElementById('custom_instructions').value;
-    
+    const webSearch = document.getElementById('enable_web_search').checked;
+
     if (jLevel) formData.append("jurisdiction_level", jLevel);
     if (jDist) formData.append("jurisdiction", jDist);
     if (target) formData.append("target_entity", target);
     if (inst) formData.append("custom_instructions", inst);
-    
-    const webSearch = document.getElementById('enable_web_search')?.checked;
     formData.append("enable_web_search", webSearch ? "true" : "false");
 
-    // Collect document roles
-    const roleSelects = document.querySelectorAll('.role-select');
+    // Construct typed document roles
     const docRoles = [];
-    if (roleSelects.length > 0) {
-        roleSelects.forEach(sel => {
-            const idx = parseInt(sel.dataset.index);
-            docRoles.push({
-                filename: selectedFiles[idx].name,
-                role: sel.value
-            });
-        });
-    } else if (selectedFiles.length === 1) {
-        docRoles.push({ filename: selectedFiles[0].name, role: "target" });
+    docRoles.push({ filename: targetFile.name, role: "target" });
+    formData.append("files", targetFile);
+
+    if (parentFile) {
+        docRoles.push({ filename: parentFile.name, role: "supporting" });
+        formData.append("files", parentFile);
     }
     formData.append("document_roles_json", JSON.stringify(docRoles));
 
-    selectedFiles.forEach(f => formData.append("files", f));
+    const t1 = setTimeout(() => {
+        progressFill.style.width = "45%";
+        stepLabel.textContent = "Step 2 / 3 — Running adversarial debate (AttackerAgent vs. DefenderAgent)...";
+        statusText.textContent = "Running multi-agent debate...";
+    }, 4000);
+
+    const t2 = setTimeout(() => {
+        progressFill.style.width = "80%";
+        stepLabel.textContent = "Step 3 / 3 — Synthesizing Senior Judge verdict and evaluating stakeholder impact...";
+        statusText.textContent = "Evaluating loophole severity...";
+    }, 15000);
 
     try {
-        setTimeout(() => {
-            progressFill.style.width = "40%";
-            statusSteps[0].className = "done";
-            statusSteps[1].className = "active";
-        }, 3000); // UI illusion of steps
-
         const res = await fetch('/api/analyze', { method: 'POST', body: formData });
-        
-        progressFill.style.width = "90%";
-        statusSteps[1].className = "done";
-        statusSteps[2].className = "active";
+        clearTimeout(t1);
+        clearTimeout(t2);
 
         if (!res.ok) {
-            const error = await res.json();
-            throw new Error(error.detail || "Analysis failed");
+            const err = await res.json();
+            throw new Error(err.detail || "Analysis request failed.");
         }
-        
+
         const report = await res.json();
-        renderReport(report);
-        
         progressFill.style.width = "100%";
-        statusSteps[2].className = "done";
+        stepLabel.textContent = "Analysis Complete! Rendering report...";
+        statusText.textContent = "Analysis completed.";
+
+        // Update local quota count
+        if (!currentUser.is_admin && currentUser.report_limit !== -1) {
+            currentUser.reports_used += 1;
+            updateQuotaDisplay();
+        }
+
         setTimeout(() => {
             loadingState.classList.add('hidden');
+            renderReport(report);
             resultsState.classList.remove('hidden');
-        }, 800);
+        }, 500);
 
     } catch (err) {
-        alert(`Error: ${err.message}`);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        alert(`Analysis Error: ${err.message}`);
         loadingState.classList.add('hidden');
+        idleState.classList.remove('hidden');
+        statusText.textContent = "Analysis failed.";
     } finally {
         uploadForm.querySelectorAll('button, input, select, textarea').forEach(el => el.disabled = false);
+        updateQuotaDisplay();
     }
 });
 
-// Render Report
-let currentReportJson = null;
+// ==========================================================================
+// 5. Report Viewer & Renderer
+// ==========================================================================
 
 function renderReport(report) {
     currentReportJson = report;
     currentSessionId = report.session_id || "";
-    
-    // Arguments & Session Context
-    const argsContainer = document.getElementById('res-arguments');
-    argsContainer.innerHTML = `
-        <p><strong>Session ID:</strong> <code>${report.session_id || 'N/A'}</code></p>
-        <p><strong>Jurisdiction:</strong> ${report.jurisdiction || 'N/A'} (${report.jurisdiction_level || 'N/A'})</p>
-        <p><strong>Target Entity:</strong> ${report.target_entity || 'N/A'}</p>
-        <p><strong>Policy Document:</strong> ${report.policy_document || 'N/A'}</p>
-    `;
 
-    // Core Finding
+    // Core finding
     document.getElementById('res-vector').textContent = report.exploit_vector || "N/A";
     const sevEl = document.getElementById('res-severity');
-    const sev = report.severity_classification || "N/A";
+    const sev = (report.severity_classification || "N/A").toUpperCase();
     sevEl.textContent = sev;
-    sevEl.className = `badge-severity ${sev.toUpperCase()}`;
+    sevEl.className = `badge-sev ${sev}`;
     document.getElementById('res-confidence').textContent = (report.legal_confidence_score || 0).toFixed(2);
-    document.getElementById('res-summary').textContent = (report.canonical_exploit || {}).summary || "";
+    document.getElementById('res-summary').textContent = (report.canonical_exploit || {}).summary || report.summary || "No summary available.";
 
-    // Citizen
+    // Stakeholders
     const cit = report.citizen_score || {};
     document.getElementById('res-cit-harm').textContent = (cit.harm_score || 0).toFixed(2);
     document.getElementById('res-cit-ben').textContent = (cit.benefit_score || 0).toFixed(2);
     document.getElementById('res-cit-pop').textContent = cit.affected_population || "";
 
-    // Business
     const bus = report.business_score || {};
     document.getElementById('res-bus-harm').textContent = (bus.harm_score || 0).toFixed(2);
     document.getElementById('res-bus-ben').textContent = (bus.benefit_score || 0).toFixed(2);
     document.getElementById('res-bus-pop').textContent = bus.affected_population || "";
 
-    document.getElementById('res-remediation').textContent = report.remediation_recommendation || "";
+    document.getElementById('res-remediation').textContent = report.remediation_recommendation || "None";
+    document.getElementById('res-judge-reasoning').textContent = report.raw_judge_reasoning || "No chain-of-thought available.";
 
-    // Judge Chain-of-Thought
-    document.getElementById('res-judge-reasoning').textContent = report.raw_judge_reasoning || "No judge chain-of-thought available.";
-
-    // Transcript
+    // Debate transcript
     const transContainer = document.getElementById('res-transcript');
     transContainer.innerHTML = "";
     (report.debate_transcript || []).forEach(t => {
         const div = document.createElement('div');
-        div.className = 'turn-box';
+        div.className = 'turn-box-classic';
         div.innerHTML = `
-            <strong>Turn ${t.turn_number}</strong> — <span class="badge" style="background:#30363d">${t.turn_verdict}</span>
-            <blockquote style="color:#ff7b72"><strong>Attacker:</strong> ${t.exploit_claim}</blockquote>
-            <blockquote style="color:#58a6ff"><strong>Defender:</strong> ${t.defender_rebuttal}</blockquote>
-            <small>Attacker cited: ${(t.attacker_citations||[]).join(", ")} | Defender cited: ${(t.defender_citations||[]).join(", ")}</small>
+            <strong>Turn ${t.turn_number}</strong> — <span class="badge-sev" style="background:#555">${t.turn_verdict}</span>
+            <blockquote class="attacker"><strong>Attacker:</strong> ${t.exploit_claim}</blockquote>
+            <blockquote><strong>Defender:</strong> ${t.defender_rebuttal}</blockquote>
+            <small style="color:#666;">Attacker: ${(t.attacker_citations || []).join(", ") || "None"} | Defender: ${(t.defender_citations || []).join(", ") || "None"}</small>
         `;
         transContainer.appendChild(div);
     });
 
-    // Citations
+    // Statutory citations
     const citeContainer = document.getElementById('res-citations');
     citeContainer.innerHTML = "";
     (report.statutory_citations || []).forEach(c => {
         const div = document.createElement('div');
-        div.className = 'cite-box';
+        div.className = 'cite-box-classic';
         div.innerHTML = `
-            <strong>${c.section_id}</strong> — <em>${c.source_document}</em> (p. ${c.page_number || '?'})
-            <blockquote>${c.quoted_text}</blockquote>
+            <strong>${c.section_id}</strong> — <em>${c.source_document}</em> (Page ${c.page_number || '?'})
+            <p style="margin-top: 3px;">"${c.quoted_text}"</p>
         `;
         citeContainer.appendChild(div);
     });
@@ -252,133 +476,348 @@ function renderReport(report) {
     provContainer.innerHTML = "";
     const provs = report.retrieval_provenance || [];
     if (provs.length === 0) {
-        provContainer.innerHTML = "<p style='color:#8b949e;'>No search queries recorded.</p>";
+        provContainer.innerHTML = "<p style='color:#666;'>No search queries recorded in session.</p>";
     } else {
         provs.forEach((p, idx) => {
             const div = document.createElement('div');
-            div.className = 'turn-box';
-            div.style.borderLeftColor = "#1f6feb";
+            div.className = 'turn-box-classic';
             div.innerHTML = `
-                <strong>Query ${idx + 1}:</strong> <code>"${p.query}"</code><br>
-                <small style='color:#8b949e;'>Timestamp: ${p.timestamp || 'N/A'}</small>
+                <strong>Query ${idx + 1}:</strong> <code>"${p.search_query}"</code>
+                <small style="display:block; color:#555;">Returned ${p.nodes_returned} node(s) | Agent: ${p.agent_name || 'Defender'}</small>
             `;
             provContainer.appendChild(div);
         });
     }
-
-    // Model Infrastructure
-    const modelsContainer = document.getElementById('res-models');
-    modelsContainer.innerHTML = "";
-    const models = report.model_versions_used || {};
-    if (Object.keys(models).length === 0) {
-        modelsContainer.innerHTML = "<p style='color:#8b949e;'>Standard Gemini ensemble used.</p>";
-    } else {
-        let html = "<ul>";
-        for (let [agent, model] of Object.entries(models)) {
-            html += `<li><strong>${agent}:</strong> <code>${model}</code></li>`;
-        }
-        html += "</ul>";
-        modelsContainer.innerHTML = html;
-    }
 }
 
-// Download Helpers
-function triggerDownload(content, filename, type) {
-    const blob = new Blob([content], { type: type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
+// Download File Handlers
+function downloadFile(content, fileName, contentType) {
+    const a = document.createElement("a");
+    const file = new Blob([content], { type: contentType });
+    a.href = URL.createObjectURL(file);
+    a.download = fileName;
     a.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(a.href);
 }
 
-function generateMarkdownReport(report) {
-    let md = `# ⚖️ Policy Red Team Audit Report\n\n`;
-    md += `**Session ID:** \`${report.session_id || 'N/A'}\`  \n`;
-    md += `**Jurisdiction:** ${report.jurisdiction || 'N/A'} (${report.jurisdiction_level || 'N/A'})  \n`;
-    md += `**Target Entity:** ${report.target_entity || 'N/A'}  \n`;
-    md += `**Policy Document:** ${report.policy_document || 'N/A'}  \n\n`;
-    
-    md += `---\n\n`;
-    md += `## 🎯 Core Finding\n\n`;
-    md += `- **Exploit Vector:** ${report.exploit_vector || 'N/A'}\n`;
-    md += `- **Severity:** ${report.severity_classification || 'N/A'}\n`;
-    md += `- **Legal Confidence Score:** ${(report.legal_confidence_score || 0).toFixed(2)}\n\n`;
-    md += `### Summary\n${(report.canonical_exploit || {}).summary || 'N/A'}\n\n`;
-
-    md += `---\n\n`;
-    md += `## 👥 Stakeholder Impact\n\n`;
-    const cit = report.citizen_score || {};
-    md += `### Citizen Impact\n- Harm Score: ${cit.harm_score || 0} | Benefit Score: ${cit.benefit_score || 0}\n- ${cit.affected_population || ''}\n\n`;
-    const bus = report.business_score || {};
-    md += `### Business Impact\n- Harm Score: ${bus.harm_score || 0} | Benefit Score: ${bus.benefit_score || 0}\n- ${bus.affected_population || ''}\n\n`;
-
-    md += `---\n\n`;
-    md += `## 🔧 Remediation Recommendation\n${report.remediation_recommendation || 'N/A'}\n\n`;
-
-    md += `---\n\n`;
-    md += `## 🧠 Judge Chain-of-Thought & Reasoning\n\`\`\`\n${report.raw_judge_reasoning || 'N/A'}\n\`\`\`\n\n`;
-
-    md += `---\n\n`;
-    md += `## 📜 Adversarial Debate Transcript\n\n`;
-    (report.debate_transcript || []).forEach(t => {
-        md += `### Turn ${t.turn_number} (Verdict: ${t.turn_verdict})\n`;
-        md += `- **Attacker:** ${t.exploit_claim}\n`;
-        md += `- **Defender:** ${t.defender_rebuttal}\n`;
-        md += `- *Citations:* Attacker: ${(t.attacker_citations||[]).join(", ") || "None"} | Defender: ${(t.defender_citations||[]).join(", ") || "None"}\n\n`;
-    });
-
-    md += `---\n\n`;
-    md += `## 📚 Statutory Citations\n\n`;
-    (report.statutory_citations || []).forEach(c => {
-        md += `### ${c.section_id} — ${c.source_document} (p. ${c.page_number || '?'})\n> ${c.quoted_text}\n\n`;
-    });
-
-    return md;
-}
-
-document.getElementById('download-json-btn').addEventListener('click', () => {
+document.getElementById('download-json-btn')?.addEventListener('click', () => {
     if (!currentReportJson) return;
-    const filename = `policy_redteam_${currentSessionId.substring(0,8) || "report"}.json`;
-    triggerDownload(JSON.stringify(currentReportJson, null, 2), filename, "application/json");
+    downloadFile(JSON.stringify(currentReportJson, null, 2), `loophole_report_${currentSessionId || 'audit'}.json`, "application/json");
 });
 
-document.getElementById('download-md-btn').addEventListener('click', () => {
+document.getElementById('download-txt-btn')?.addEventListener('click', () => {
     if (!currentReportJson) return;
-    const md = generateMarkdownReport(currentReportJson);
-    const filename = `policy_redteam_${currentSessionId.substring(0,8) || "report"}.md`;
-    triggerDownload(md, filename, "text/markdown");
+    const txt = `POLICY RED TEAM AUDIT REPORT\n` +
+        `Session ID: ${currentReportJson.session_id}\n` +
+        `Severity: ${currentReportJson.severity_classification}\n` +
+        `Exploit Vector: ${currentReportJson.exploit_vector}\n` +
+        `Legal Confidence: ${currentReportJson.legal_confidence_score}\n\n` +
+        `SUMMARY:\n${(currentReportJson.canonical_exploit || {}).summary || ''}\n\n` +
+        `REMEDIATION:\n${currentReportJson.remediation_recommendation || ''}\n`;
+    downloadFile(txt, `loophole_report_${currentSessionId || 'audit'}.txt`, "text/plain");
 });
 
-document.getElementById('download-txt-btn').addEventListener('click', () => {
+document.getElementById('download-md-btn')?.addEventListener('click', () => {
     if (!currentReportJson) return;
-    const md = generateMarkdownReport(currentReportJson);
-    const filename = `policy_redteam_${currentSessionId.substring(0,8) || "report"}.txt`;
-    triggerDownload(md, filename, "text/plain");
+    const md = `# Policy Red Team — Loophole Report\n\n` +
+        `- **Session ID:** \`${currentReportJson.session_id}\`\n` +
+        `- **Severity:** **${currentReportJson.severity_classification}**\n` +
+        `- **Exploit Vector:** ${currentReportJson.exploit_vector}\n` +
+        `- **Legal Confidence Score:** ${currentReportJson.legal_confidence_score}\n\n` +
+        `## Core Finding\n${(currentReportJson.canonical_exploit || {}).summary || ''}\n\n` +
+        `## Legislative Remediation Recommendation\n${currentReportJson.remediation_recommendation || ''}\n`;
+    downloadFile(md, `loophole_report_${currentSessionId || 'audit'}.md`, "text/markdown");
 });
 
-// Feedback
-document.getElementById('feedback-form').addEventListener('submit', async (e) => {
+// Feedback Form
+document.getElementById('feedback-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = e.target.querySelector('button');
-    btn.disabled = true;
-    btn.textContent = "Submitting...";
+    if (!currentUser) return;
 
-    const formData = new FormData();
-    formData.append("password", sessionStorage.getItem('auth_pwd'));
-    formData.append("rating", document.getElementById('fb-rating').value);
-    formData.append("category", document.getElementById('fb-category').value);
-    formData.append("message", document.getElementById('fb-message').value);
-    formData.append("session_id", currentSessionId);
+    const rating = document.getElementById('fb-rating').value;
+    const cat = document.getElementById('fb-category').value;
+    const msg = document.getElementById('fb-message').value;
+
+    const fd = new FormData();
+    fd.append("password", currentUser.passcode);
+    fd.append("rating", rating);
+    fd.append("category", cat);
+    fd.append("message", msg);
+    fd.append("session_id", currentSessionId);
 
     try {
-        await fetch('/api/feedback', { method: 'POST', body: formData });
-        btn.textContent = "✅ Feedback Submitted";
-        btn.style.background = "#238636";
-    } catch (err) {
-        alert("Feedback submission failed locally.");
-        btn.disabled = false;
-        btn.textContent = "Submit Feedback →";
+        const res = await fetch('/api/feedback', { method: 'POST', body: fd });
+        if (res.ok) {
+            alert("Thank you! Your evaluation feedback has been recorded.");
+            document.getElementById('fb-message').value = "";
+        } else {
+            alert("Failed to submit feedback.");
+        }
+    } catch (e) {
+        alert("Network error submitting feedback.");
     }
+});
+
+// ==========================================================================
+// 6. My Past Reports Tab
+// ==========================================================================
+
+async function loadUserReports() {
+    if (!currentUser) return;
+    const tbody = document.getElementById('user-reports-tbody');
+    const countEl = document.getElementById('past-reports-count');
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Loading reports...</td></tr>`;
+
+    try {
+        const res = await fetch(`/api/user/reports?passcode=${encodeURIComponent(currentUser.passcode)}`);
+        if (!res.ok) throw new Error("Failed to load reports");
+        const reports = await res.json();
+
+        countEl.textContent = `Total reports generated: ${reports.length}`;
+        if (reports.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666;">No reports generated under this passcode yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = "";
+        reports.forEach(r => {
+            const tr = document.createElement('tr');
+            const dateStr = new Date(r.created_at).toLocaleString();
+            tr.innerHTML = `
+                <td>${dateStr}</td>
+                <td><strong>${r.policy_document}</strong></td>
+                <td>${r.jurisdiction}</td>
+                <td><span class="badge-sev ${r.severity.toUpperCase()}">${r.severity}</span></td>
+                <td>${r.exploit_vector}</td>
+                <td>
+                    <button class="btn-classic" onclick="openReportById('${r.report_id}')">📂 Open</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#990000;">Failed to load reports: ${e.message}</td></tr>`;
+    }
+}
+
+document.getElementById('btn-refresh-user-reports')?.addEventListener('click', loadUserReports);
+
+window.openReportById = async (reportId) => {
+    if (!currentUser) return;
+    statusText.textContent = `Loading report ${reportId}...`;
+    try {
+        const res = await fetch(`/api/reports/${encodeURIComponent(reportId)}?passcode=${encodeURIComponent(currentUser.passcode)}`);
+        if (!res.ok) throw new Error("Report not found");
+        const report = await res.json();
+        
+        switchTab('tab-audit');
+        idleState.classList.add('hidden');
+        loadingState.classList.add('hidden');
+        renderReport(report);
+        resultsState.classList.remove('hidden');
+        statusText.textContent = `Loaded report ${reportId}.`;
+    } catch (e) {
+        alert(`Error opening report: ${e.message}`);
+        statusText.textContent = "Ready";
+    }
+};
+
+// ==========================================================================
+// 7. Administrator Console Tab
+// ==========================================================================
+
+async function loadAdminPasscodes() {
+    if (!currentUser?.is_admin) return;
+    const tbody = document.getElementById('admin-passcodes-tbody');
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Loading passcodes...</td></tr>`;
+
+    try {
+        const res = await fetch(`/api/admin/passcodes?admin_passcode=${encodeURIComponent(currentUser.passcode)}`);
+        if (!res.ok) throw new Error("Failed to load passcodes");
+        const passcodes = await res.json();
+
+        tbody.innerHTML = "";
+        passcodes.forEach(p => {
+            const tr = document.createElement('tr');
+            const dateStr = new Date(p.created_at).toLocaleDateString();
+            const isMaster = p.is_admin ? '<strong style="color:#0a246a;">👑 Admin</strong>' : 'Tester';
+            const limitStr = p.report_limit === -1 ? 'Unlimited' : p.report_limit;
+            
+            let actions = "";
+            if (!p.is_admin) {
+                actions = `
+                    <button class="btn-classic" onclick="copyToClipboard('${p.passcode}')" title="Copy Passcode">📋 Copy</button>
+                    <button class="btn-classic" onclick="adminAdjustLimit('${p.passcode}', ${p.report_limit})">Edit Limit</button>
+                    <button class="btn-classic" onclick="adminResetUsed('${p.passcode}')">Reset</button>
+                    <button class="btn-classic btn-danger" onclick="adminRevokePasscode('${p.passcode}')">Revoke</button>
+                `;
+            } else {
+                actions = `<em style="color:#666;">Protected Master Key</em>`;
+            }
+
+            tr.innerHTML = `
+                <td><code>${p.passcode}</code></td>
+                <td><strong>${p.label}</strong></td>
+                <td>${isMaster}</td>
+                <td>${p.reports_used}</td>
+                <td>${limitStr}</td>
+                <td>${dateStr}</td>
+                <td><div style="display:flex; gap:3px;">${actions}</div></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#990000;">Error: ${e.message}</td></tr>`;
+    }
+}
+
+async function loadAdminAllReports() {
+    if (!currentUser?.is_admin) return;
+    const tbody = document.getElementById('admin-all-reports-tbody');
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Loading master ledger...</td></tr>`;
+
+    try {
+        const res = await fetch(`/api/admin/reports?admin_passcode=${encodeURIComponent(currentUser.passcode)}`);
+        if (!res.ok) throw new Error("Failed to load master ledger");
+        const allReports = await res.json();
+
+        if (allReports.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#666;">No audit reports have been generated yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = "";
+        allReports.forEach(r => {
+            const tr = document.createElement('tr');
+            const dateStr = new Date(r.created_at).toLocaleString();
+            tr.innerHTML = `
+                <td>${dateStr}</td>
+                <td><strong>${r.user_label}</strong></td>
+                <td><code>${r.passcode}</code></td>
+                <td>${r.policy_document}</td>
+                <td><span class="badge-sev ${r.severity.toUpperCase()}">${r.severity}</span></td>
+                <td>${r.exploit_vector}</td>
+                <td>
+                    <button class="btn-classic" onclick="openReportById('${r.report_id}')">📂 View</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#990000;">Error: ${e.message}</td></tr>`;
+    }
+}
+
+document.getElementById('btn-refresh-passcodes')?.addEventListener('click', loadAdminPasscodes);
+document.getElementById('btn-refresh-all-reports')?.addEventListener('click', loadAdminAllReports);
+
+// Admin: Create Passcode Form
+document.getElementById('admin-create-passcode-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!currentUser?.is_admin) return;
+
+    const label = document.getElementById('admin-new-label').value.trim();
+    const limit = parseInt(document.getElementById('admin-new-limit').value, 10) || 5;
+    const customCode = document.getElementById('admin-new-code').value.trim();
+
+    const fd = new FormData();
+    fd.append("admin_passcode", currentUser.passcode);
+    fd.append("label", label);
+    fd.append("report_limit", limit);
+    if (customCode) fd.append("custom_passcode", customCode);
+
+    try {
+        const res = await fetch('/api/admin/passcodes', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error("Failed to generate passcode");
+        const created = await res.json();
+
+        alert(`✅ Passcode Created Successfully!\n\nPasscode: ${created.passcode}\nAssigned to: ${created.label}\nReport Limit: ${created.report_limit}`);
+        document.getElementById('admin-new-label').value = "";
+        document.getElementById('admin-new-code').value = "";
+        loadAdminPasscodes();
+    } catch (err) {
+        alert(`Error: ${err.message}`);
+    }
+});
+
+window.copyToClipboard = (text) => {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert(`📋 Passcode '${text}' copied to clipboard! You can now send it to your tester.`);
+        }).catch(() => {
+            prompt("Copy this passcode:", text);
+        });
+    } else {
+        prompt("Copy this passcode:", text);
+    }
+};
+
+window.adminAdjustLimit = async (code, currentLimit) => {
+    const newLimit = prompt(`Enter new report quota limit for ${code}:`, currentLimit);
+    if (newLimit === null) return;
+    const parsed = parseInt(newLimit, 10);
+    if (isNaN(parsed) || parsed < 1) {
+        alert("Please enter a valid positive number.");
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append("admin_passcode", currentUser.passcode);
+    fd.append("report_limit", parsed);
+    fd.append("reset_used", "false");
+
+    try {
+        const res = await fetch(`/api/admin/passcodes/${encodeURIComponent(code)}/adjust`, { method: 'POST', body: fd });
+        if (res.ok) {
+            loadAdminPasscodes();
+        } else {
+            alert("Failed to adjust limit.");
+        }
+    } catch (e) {
+        alert("Network error.");
+    }
+};
+
+window.adminResetUsed = async (code) => {
+    if (!confirm(`Reset reports used counter to 0 for ${code}?`)) return;
+
+    const fd = new FormData();
+    fd.append("admin_passcode", currentUser.passcode);
+    fd.append("report_limit", 5);
+    fd.append("reset_used", "true");
+
+    try {
+        const res = await fetch(`/api/admin/passcodes/${encodeURIComponent(code)}/adjust`, { method: 'POST', body: fd });
+        if (res.ok) {
+            loadAdminPasscodes();
+        } else {
+            alert("Failed to reset count.");
+        }
+    } catch (e) {
+        alert("Network error.");
+    }
+};
+
+window.adminRevokePasscode = async (code) => {
+    if (!confirm(`Are you sure you want to REVOKE passcode '${code}'? This cannot be undone.`)) return;
+
+    try {
+        const res = await fetch(`/api/admin/passcodes/${encodeURIComponent(code)}?admin_passcode=${encodeURIComponent(currentUser.passcode)}`, {
+            method: 'DELETE'
+        });
+        if (res.ok) {
+            loadAdminPasscodes();
+        } else {
+            alert("Failed to revoke passcode.");
+        }
+    } catch (e) {
+        alert("Network error.");
+    }
+};
+
+// ==========================================================================
+// Initialization
+// ==========================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    checkSavedSession();
 });
