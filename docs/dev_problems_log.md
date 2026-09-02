@@ -152,6 +152,15 @@ This document presents a deep-tech architectural retrospective of the engineerin
 
 ---
 
+## 16. Agent Alignment: Multi-Angle Defense & Heuristic Calibration
+
+* **Problem:** False positives in vulnerability detection (Defender agents failing to find overriding clauses) and uncalibrated, fluctuating stakeholder impact scores.
+* **Root Cause Analysis:** The Defender agent relied on a single-query search strategy, often missing broad penalty clauses or parent Act overrides that use different terminology than the Attacker's exploit. Furthermore, Proxy agents lacked numerical anchors, leading to volatile severity assignments.
+* **Remediation & Architecture Fix:** Implemented a mandatory "3-Angle Retrieval Protocol" for the Defender, enforcing searches across direct clauses, superior overrides, and general definitions. Injected a standardized, quantitative "Harm/Benefit Score Calibration Rubric" into proxy agent prompts to anchor impact scoring.
+* **Technical Pattern:** Multi-Shot Retrieval Prompting, Heuristic Anchor Injection, Agent Behavior Formalization.
+
+---
+
 ## Summary Matrix
 
 | Failure Mode | Deep-Tech Root Cause | Remediation Primitive | CS/AI Engineering Domain |
@@ -171,3 +180,5 @@ This document presents a deep-tech architectural retrospective of the engineerin
 | Markdown JSON Fences | LLM code block wrappers in JSON output | Markdown fence stripper in `_extract_report()` | Payload Sanitization / Deserialization |
 | Mock Environment Risk | Silent degradation in production | Enforced Vertex AI + Fail Fast | Hardened Production Boundaries |
 | Multi-Doc Truncation | `SIMILARITY_TOP_K=6` limit | Doubled Top-K to 12 | Vector Retrieval Tuning |
+| False Vulnerabilities | Single-query retrieval blindness | 3-Angle Retrieval Protocol | Multi-Shot Retrieval Prompting |
+| Score Volatility | Uncalibrated LLM heuristics | Quantitative Scoring Rubric | Heuristic Anchor Injection |
