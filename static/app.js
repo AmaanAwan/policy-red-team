@@ -63,9 +63,18 @@ function handleFiles(files) {
 
 function renderFileList() {
     fileList.innerHTML = "";
+    const showRoles = selectedFiles.length === 2;
     selectedFiles.forEach((file, index) => {
         const li = document.createElement('li');
-        li.innerHTML = `<span>📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+        let roleHtml = '';
+        if (showRoles) {
+            roleHtml = `<select class="role-select" data-index="${index}">
+                <option value="target" ${index === 0 ? 'selected' : ''}>🎯 Target (find loopholes)</option>
+                <option value="supporting" ${index === 1 ? 'selected' : ''}>🛡️ Supporting (defense ref)</option>
+            </select>`;
+        }
+        li.innerHTML = `<span class="file-name-info">📄 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                        ${roleHtml}
                         <span class="remove-file" onclick="removeFile(${index})">✕</span>`;
         fileList.appendChild(li);
     });
@@ -111,6 +120,25 @@ uploadForm.addEventListener('submit', async (e) => {
     if (target) formData.append("target_entity", target);
     if (inst) formData.append("custom_instructions", inst);
     
+    const webSearch = document.getElementById('enable_web_search')?.checked;
+    formData.append("enable_web_search", webSearch ? "true" : "false");
+
+    // Collect document roles
+    const roleSelects = document.querySelectorAll('.role-select');
+    const docRoles = [];
+    if (roleSelects.length > 0) {
+        roleSelects.forEach(sel => {
+            const idx = parseInt(sel.dataset.index);
+            docRoles.push({
+                filename: selectedFiles[idx].name,
+                role: sel.value
+            });
+        });
+    } else if (selectedFiles.length === 1) {
+        docRoles.push({ filename: selectedFiles[0].name, role: "target" });
+    }
+    formData.append("document_roles_json", JSON.stringify(docRoles));
+
     selectedFiles.forEach(f => formData.append("files", f));
 
     try {

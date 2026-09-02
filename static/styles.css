@@ -180,10 +180,21 @@ button {
 .file-drop-area small { color: var(--text-muted); }
 .file-list { list-style: none; margin-top: 1rem; }
 .file-list li {
-    background: rgba(255,255,255,0.05); padding: 0.5rem 1rem;
-    border-radius: 4px; font-size: 0.85rem; margin-bottom: 0.5rem;
-    display: flex; justify-content: space-between;
+    background: rgba(255,255,255,0.05); padding: 0.6rem 1rem;
+    border-radius: 6px; font-size: 0.85rem; margin-bottom: 0.5rem;
+    display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
 }
+.file-name-info { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-select {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: #161b22;
+    color: var(--text-main);
+    cursor: pointer;
+}
+.role-select:focus { border-color: var(--primary); outline: none; }
 .remove-file { color: #ff7b72; cursor: pointer; font-weight: bold; }
 
 /* Settings */

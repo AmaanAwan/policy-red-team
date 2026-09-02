@@ -64,6 +64,8 @@ from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 
 from src.orchestration.state import (
+    DocumentEntry,
+    DocumentRole,
     JurisdictionLevel,
     LoopholeReport,
     PolicyAuditState,
@@ -485,22 +487,23 @@ async def run_audit_simple(
     jurisdiction_level_str: str,
     target_entity: str,
     custom_instructions: str = "",
+    document_roles: list[dict] | None = None,
+    enable_web_search: bool = False,
     output_path: Path | None = None,
     verbose: bool = False,
 ) -> "LoopholeReport":
     """
-    Streamlit / FastAPI friendly wrapper around run_audit().
-
-    Accepts plain Python types (strings, lists) so callers don't need
-    to construct Pydantic models manually.
+    Convenience wrapper around run_audit() that constructs PolicyAuditState
+    from simple string arguments. Ideal for calling from FastAPI / Streamlit.
 
     Args:
-        pdf_names:              List of PDF filenames that were ingested
-                                (used for labelling in the report).
+        pdf_names:              List of PDF filenames ingested for this run.
         jurisdiction:           e.g. "Rawalpindi, Punjab, Pakistan"
         jurisdiction_level_str: "Federal", "Provincial", or "Municipal"
         target_entity:          e.g. "Real Estate Developers"
         custom_instructions:    Optional focus hint injected into AttackerAgent.
+        document_roles:         Optional list of {"filename": str, "role": "target"|"supporting"}.
+        enable_web_search:      Opt-in Google Search capability for DefenderAgent.
         output_path:            Optional file path to save the JSON report.
         verbose:                Stream ADK events to console if True.
 
@@ -518,12 +521,23 @@ async def run_audit_simple(
     # Use comma-joined filenames as the policy_document label
     policy_label = ", ".join(pdf_names) if pdf_names else "uploaded_document.pdf"
 
+    # Build document_roles tuple
+    doc_roles = ()
+    if document_roles:
+        doc_roles = tuple(
+            DocumentEntry(filename=d["filename"], role=DocumentRole(d["role"]))
+            for d in document_roles
+            if isinstance(d, dict) and "filename" in d and "role" in d
+        )
+
     state = PolicyAuditState(
         jurisdiction=jurisdiction,
         jurisdiction_level=jd_level,
         target_entity=target_entity,
         policy_document=policy_label,
         custom_instructions=custom_instructions,
+        document_roles=doc_roles,
+        enable_web_search=enable_web_search,
         max_turns=3,
     )
 
@@ -532,4 +546,3 @@ async def run_audit_simple(
 
 if __name__ == "__main__":
     asyncio.run(_main())
-

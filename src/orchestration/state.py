@@ -88,6 +88,19 @@ class TurnVerdict(str, Enum):
     EXPLOIT_REFUTED = "exploit_refuted"      # Defender found a direct blocking statute
 
 
+class DocumentRole(str, Enum):
+    """Role of an uploaded document in the audit session."""
+    TARGET = "target"          # The policy to find loopholes in
+    SUPPORTING = "supporting"  # Companion Act / parent statute for defense context
+
+
+class DocumentEntry(BaseModel):
+    """A labeled document in the audit session."""
+    model_config = ConfigDict(frozen=True)
+    filename: str
+    role: DocumentRole
+
+
 # ===================================================================
 # ATOMIC DATA MODELS
 # ===================================================================
@@ -279,6 +292,10 @@ class PolicyAuditState(BaseModel):
     # Optional free-text instructions from the user (e.g., "Focus on fee schedule gaps").
     # Injected into AttackerAgent prompt when non-empty.
     custom_instructions: str = ""
+    # Labeled document catalog (Target vs Supporting)
+    document_roles: tuple[DocumentEntry, ...] = ()
+    # Opt-in external web search for Defender
+    enable_web_search: bool = False
 
     # --- Adversarial loop control ---
     current_turn: int = 0
@@ -312,6 +329,10 @@ class PolicyAuditState(BaseModel):
             "target_entity": self.target_entity,
             "policy_document": self.policy_document,
             "custom_instructions": self.custom_instructions,
+            "document_roles_json": json.dumps(
+                [d.model_dump() for d in self.document_roles], default=str
+            ),
+            "enable_web_search": self.enable_web_search,
 
             # Loop control (updated by after_agent_callbacks)
             "current_turn": self.current_turn,

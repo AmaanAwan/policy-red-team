@@ -161,6 +161,24 @@ This document presents a deep-tech architectural retrospective of the engineerin
 
 ---
 
+## 17. Multi-Document Orchestration: Target vs. Supporting Role Disambiguation
+
+* **Problem:** Cross-document semantic confusion where Attacker agents incorrectly identified exploits in higher-order parent Acts rather than the target bylaw under audit.
+* **Root Cause Analysis:** When multiple policy documents were ingested into the unified FAISS vector space, all agents treated the document collection as an undifferentiated corpus. Without explicit role metadata, the Attacker attacked clauses in both documents indiscriminately, while the Defender lacked guidance on prioritizing parent statutes for overriding defenses.
+* **Remediation & Architecture Fix:** Introduced typed `DocumentRole` (`TARGET` vs `SUPPORTING`) and `DocumentEntry` primitives across state management, API routes, and UI. Injected dynamic `_build_document_context()` preambles into all agent instructions, constraining the Attacker to target documents and guiding the Defender to search supporting companion acts.
+* **Technical Pattern:** Role-Conditioned Agent Prompting, Multi-Document Semantic Scoping, State-Driven Context Routing.
+
+---
+
+## 18. Dynamic Legal Discovery: Grounded External Web Search & Provenance Penalties
+
+* **Problem:** Auditing subordinate bylaws or executive notifications whose overriding parent statutes (e.g., Cantonments Act, LGA) were not uploaded by the user, leading to false-positive loophole survival.
+* **Root Cause Analysis:** Offline RAG vector databases are fundamentally closed-world representations. When a statutory loophole exists solely due to the absence of the parent statutory framework in the vector index, the Defender cannot cite the overriding superior statute unless it is present in the uploaded corpus.
+* **Remediation & Architecture Fix:** Integrated opt-in Google Search grounding (`google.genai.types.GoogleSearch`) exclusively into the `DefenderAgent`, paired with a strict citation tag (`[WEB SOURCE]`). Augmented the `JudgeAgent` with an automated evidence-binding confidence penalty (-0.3) for web-sourced citations to maintain academic rigor and transparency.
+* **Technical Pattern:** Open-World Grounding Augmentation, Provenance-Weighted Scoring, Asymmetric Tool Access.
+
+---
+
 ## Summary Matrix
 
 | Failure Mode | Deep-Tech Root Cause | Remediation Primitive | CS/AI Engineering Domain |
@@ -182,3 +200,5 @@ This document presents a deep-tech architectural retrospective of the engineerin
 | Multi-Doc Truncation | `SIMILARITY_TOP_K=6` limit | Doubled Top-K to 12 | Vector Retrieval Tuning |
 | False Vulnerabilities | Single-query retrieval blindness | 3-Angle Retrieval Protocol | Multi-Shot Retrieval Prompting |
 | Score Volatility | Uncalibrated LLM heuristics | Quantitative Scoring Rubric | Heuristic Anchor Injection |
+| Cross-Doc Misattribution | Undifferentiated multi-document corpus | `DocumentRole` typed context routing | Multi-Document Semantic Scoping |
+| Closed-World RAG Gap | Missing parent statutes outside vector store | Asymmetric Google Search + Provenance Penalty | Open-World Grounding Augmentation |

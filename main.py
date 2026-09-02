@@ -132,6 +132,8 @@ async def analyze_policies(
     jurisdiction: Optional[str] = Form(None),
     target_entity: Optional[str] = Form(None),
     custom_instructions: Optional[str] = Form(""),
+    document_roles_json: Optional[str] = Form("[]"),
+    enable_web_search: Optional[str] = Form("false"),
     files: List[UploadFile] = File(...),
 ):
     if password != APP_PASSWORD:
@@ -151,6 +153,14 @@ async def analyze_policies(
     j_level = jurisdiction_level if jurisdiction_level else auto_meta["level"]
     j_dist = jurisdiction if jurisdiction else auto_meta["jurisdiction"]
     t_entity = target_entity if target_entity else auto_meta["target_entity"]
+
+    # Parse document roles from frontend
+    try:
+        doc_roles = json.loads(document_roles_json) if document_roles_json else []
+    except json.JSONDecodeError:
+        doc_roles = []
+
+    web_search_enabled = str(enable_web_search).lower() in ("true", "1", "yes", "on")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
@@ -182,6 +192,8 @@ async def analyze_policies(
                 jurisdiction_level_str=j_level,
                 target_entity=t_entity,
                 custom_instructions=custom_instructions,
+                document_roles=doc_roles if doc_roles else None,
+                enable_web_search=web_search_enabled,
                 output_path=report_path,
             )
             

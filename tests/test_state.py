@@ -19,6 +19,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.orchestration.state import (
+    DocumentEntry,
+    DocumentRole,
     ExploitVector,
     JurisdictionLevel,
     PolicyAuditState,
@@ -47,6 +49,18 @@ class TestStatutoryCitation:
 
         with pytest.raises(Exception):
             citation.section_id = "Rule 8"
+
+
+class TestDocumentEntry:
+    """Tests for DocumentRole and DocumentEntry primitives."""
+
+    def test_creation_and_immutability(self):
+        doc = DocumentEntry(filename="act.pdf", role=DocumentRole.TARGET)
+        assert doc.filename == "act.pdf"
+        assert doc.role == DocumentRole.TARGET
+
+        with pytest.raises(Exception):
+            doc.role = DocumentRole.SUPPORTING
 
 
 class TestTurnSummary:
@@ -138,3 +152,32 @@ class TestPolicyAuditState:
         assert reconstructed.loop_should_continue is False
         assert len(reconstructed.debate_history) == 1
         assert reconstructed.debate_history[0].exploit_claim == "Exploit claim text"
+
+    def test_document_roles_serialization(self):
+        doc1 = DocumentEntry(filename="target.pdf", role=DocumentRole.TARGET)
+        doc2 = DocumentEntry(filename="parent.pdf", role=DocumentRole.SUPPORTING)
+        state = PolicyAuditState(
+            jurisdiction="Rawalpindi, Punjab, Pakistan",
+            jurisdiction_level=JurisdictionLevel.MUNICIPAL,
+            target_entity="Real Estate Developers",
+            policy_document="target.pdf, parent.pdf",
+            document_roles=(doc1, doc2),
+        )
+
+        s_dict = state.to_session_dict()
+        assert "document_roles_json" in s_dict
+        roles_data = json.loads(s_dict["document_roles_json"])
+        assert len(roles_data) == 2
+        assert roles_data[0]["role"] == "target"
+        assert roles_data[1]["role"] == "supporting"
+
+    def test_enable_web_search_serialization(self):
+        state = PolicyAuditState(
+            jurisdiction="Rawalpindi, Punjab, Pakistan",
+            jurisdiction_level=JurisdictionLevel.MUNICIPAL,
+            target_entity="Real Estate Developers",
+            policy_document="target.pdf",
+            enable_web_search=True,
+        )
+        s_dict = state.to_session_dict()
+        assert s_dict["enable_web_search"] is True

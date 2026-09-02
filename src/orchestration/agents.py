@@ -44,7 +44,7 @@ import logging
 
 from google.adk.agents import LlmAgent, ParallelAgent, SequentialAgent
 
-from src.orchestration.state import JurisdictionLevel, PolicyAuditState
+from src.orchestration.state import DocumentRole, JurisdictionLevel, PolicyAuditState
 from src.orchestration.tools import get_mcp_toolset
 
 logger = logging.getLogger(__name__)
@@ -152,6 +152,21 @@ def _build_jurisdiction_context(state: PolicyAuditState) -> str:
     )
 
 
+def _build_document_context(state: PolicyAuditState) -> str:
+    """Build document role context string for agent prompts."""
+    if not state.document_roles:
+        return f"POLICY DOCUMENT: {state.policy_document}"
+
+    lines = ["=== DOCUMENT ROLES ==="]
+    for doc in state.document_roles:
+        if doc.role == DocumentRole.TARGET:
+            lines.append(f"🎯 TARGET DOCUMENT (find loopholes HERE): {doc.filename}")
+        else:
+            lines.append(f"🛡️ SUPPORTING DOCUMENT (use for defense): {doc.filename}")
+    lines.append("=== END DOCUMENT ROLES ===")
+    return "\n".join(lines)
+
+
 # ===================================================================
 # ATTACKER AGENT
 # ===================================================================
@@ -180,7 +195,10 @@ loopholes, or ambiguities in the policy document that your client could use to
 minimize obligations, avoid penalties, or gain unfair regulatory advantages.
 
 TARGET ENTITY: {state.target_entity}
-POLICY DOCUMENT: {state.policy_document}
+{_build_document_context(state)}
+
+Your loophole MUST target a provision in the 🎯 TARGET DOCUMENT.
+Do NOT attack provisions in the 🛡️ SUPPORTING DOCUMENT.
 
 PREVIOUS DEBATE TURNS (for context — do NOT repeat these arguments):
 {{debate_history_text}}
@@ -265,7 +283,11 @@ ROLE: You are Legislative Counsel for the government of {state.jurisdiction}.
 Your duty is to defend the integrity of the policy against the Attacker's proposed exploit.
 You represent the public interest, not {state.target_entity}.
 
-POLICY DOCUMENT: {state.policy_document}
+{_build_document_context(state)}
+
+Prioritize searching the 🛡️ SUPPORTING DOCUMENT for overriding clauses,
+non-obstante provisions, and parent Act restrictions that block the exploit.
+You MAY also cite counter-clauses from the 🎯 TARGET DOCUMENT itself.
 
 THE ATTACKER'S ARGUMENT YOU ARE REBUTTING:
 {{current_exploit_text}}
@@ -329,11 +351,28 @@ If you are uncertain about a provision's text, quote only what you have retrieve
 Do NOT use US, UK, EU, or Indian legal frameworks. Stay strictly within {state.jurisdiction}.
 """.strip()
 
+    tools = [get_mcp_toolset()]
+    if state.enable_web_search:
+        from google.genai import types as genai_types
+        tools.append(genai_types.Tool(google_search=genai_types.GoogleSearch()))
+        instruction += """
+
+=== WEB SEARCH AUTHORIZATION ===
+You have access to Google Search for finding companion statutes, parent Acts,
+or overriding legal provisions that were NOT uploaded to this audit session.
+Use web search ONLY for:
+  - Finding the parent Act of a subordinate bylaw
+  - Discovering overriding non-obstante clauses in superior statutes
+  - Verifying whether a specific section has been amended or repealed
+Mark any web-sourced citation with [WEB SOURCE] to distinguish it from
+ingested document citations.
+"""
+
     return LlmAgent(
         name=f"DefenderAgent_R{round_num}",
         model=_PRO,
         instruction=instruction,
-        tools=[get_mcp_toolset()],
+        tools=tools,
         output_key="current_rebuttal_text",
     )
 
@@ -483,7 +522,7 @@ the strongest regulatory loophole identified in an adversarial debate.
 JURISDICTION: {state.jurisdiction}
 JURISDICTION LEVEL: {state.jurisdiction_level.value}
 TARGET ENTITY: {state.target_entity}
-POLICY DOCUMENT: {state.policy_document}
+{_build_document_context(state)}
 
 FULL DEBATE TRANSCRIPT (compressed):
 {{debate_history_text}}
@@ -565,7 +604,7 @@ THE LOOPHOLE BEING EVALUATED:
 {{canonical_exploit_json}}
 
 TARGET ENTITY BENEFITING: {state.target_entity}
-POLICY DOCUMENT: {state.policy_document}
+{_build_document_context(state)}
 
 YOUR TASK: Score this loophole from a citizen's perspective.
 
@@ -637,7 +676,7 @@ THE LOOPHOLE BEING EVALUATED:
 {{canonical_exploit_json}}
 
 TARGET ENTITY BENEFITING: {state.target_entity}
-POLICY DOCUMENT: {state.policy_document}
+{_build_document_context(state)}
 
 YOUR TASK: Score this loophole from a business community perspective.
 
@@ -728,6 +767,11 @@ retrieved text, you MUST:
   1. NOT cite it as a statutory reference
   2. Reduce your legal_confidence_score by 0.2
   3. Note the gap in raw_judge_reasoning
+
+=== WEB-SOURCED CITATION RULE ===
+If the Defender cited a [WEB SOURCE] provision, apply a higher confidence
+penalty (-0.3 instead of -0.2) because web-sourced citations cannot be
+verified against the uploaded corpus. Note web sources in raw_judge_reasoning.
 
 === SYCOPHANCY PREVENTION RULE (MANDATORY) ===
 Do NOT artificially lower severity to avoid controversial conclusions.
