@@ -208,6 +208,15 @@ CRITICAL RULES:
 - If this is NOT Turn 1, your exploit MUST be meaningfully different from previous turns.
   Do NOT rephrase the same claim — find a genuinely new statutory weakness.
 - Do NOT use US, UK, EU, or Indian legal frameworks. Stay strictly within {state.jurisdiction}.
+
+=== SEARCH STRATEGY GUIDANCE ===
+If your first search returns irrelevant results, decompose your query:
+  - Try searching for SPECIFIC TERMS from the policy (e.g., "setback requirements",
+    "appeal period days", "temporary permit conditions")
+  - Search for DEFINITIONS that might be vague or missing
+    (e.g., "definition of completed structure", "meaning of commercial use")
+  - Search for FEE SCHEDULES or PENALTY TABLES where numerical asymmetries
+    might create arbitrage opportunities
 """.strip()
 
     # Append custom user instructions if provided (injected via Streamlit UI)
@@ -265,9 +274,27 @@ FULL DEBATE HISTORY (for context):
 {{debate_history_text}}
 
 YOUR TASK:
-1. Use `search_policy_documents` to find statutory counter-clauses.
-   Search specifically for: enforcement mechanisms, penalty provisions, definitions
-   that close the gap the Attacker identified, or superior-authority clauses.
+=== MANDATORY 3-ANGLE RETRIEVAL PROTOCOL ===
+You MUST issue AT LEAST 3 separate search queries before forming your rebuttal:
+
+SEARCH 1 — DIRECT COUNTER-CLAUSE:
+  Search for the specific concept the Attacker exploits.
+  e.g., "penalty provisions for unauthorized construction"
+
+SEARCH 2 — SUPERIOR STATUTORY OVERRIDE:
+  Search for overriding authority clauses, non-obstante provisions,
+  or parent Act restrictions that limit subordinate bylaws.
+  e.g., "notwithstanding anything contained in any rule"
+  e.g., "powers of the Authority to override or cancel"
+
+SEARCH 3 — GENERAL PENALTIES & DEFINITIONS:
+  Search the general compliance, interpretation, or definitions chapter
+  for universal restrictions that apply across the entire document.
+  e.g., "general penalty non-compliance violation"
+  e.g., "definition of approved plan or authorized structure"
+
+Only AFTER completing all 3 searches, formulate your rebuttal using the
+strongest counter-clause found across ALL search results.
 
 2. Identify a section that DIRECTLY contradicts or limits the Attacker's argument.
 
@@ -487,6 +514,14 @@ Output ONLY valid JSON. No preamble, no markdown fences. Raw JSON only:
   "is_novel": true
 }}
 
+SPECIAL CASE — ALL EXPLOITS REFUTED:
+If EVERY turn in the debate transcript has verdict "exploit_refuted", then:
+- Set "summary" to: "No viable regulatory loophole survived the adversarial debate. All proposed exploits were successfully blocked by existing statutory provisions."
+- Set "exploit_vector" to the vector of the strongest attempted exploit
+- Set "is_novel" to false
+- Set "primary_citations" to the Defender's blocking citations
+This is a VALID outcome — it means the policy is well-drafted against this attack vector.
+
 RULES:
 - Only cite sections that appeared in the debate transcript above.
 - Set "is_novel": false ONLY if the DeduplicationAgent forced an early exit.
@@ -550,6 +585,19 @@ Output ONLY valid JSON. No preamble, no markdown:
 
 Consider: housing rights, public safety, access to public services, cost of living impact,
 environmental effects on local communities, and fairness in law enforcement.
+
+=== HARM SCORE CALIBRATION (USE THESE ANCHORS) ===
+0.0–0.2 (Negligible):  Affects <100 people; minor inconvenience; no financial loss
+0.3–0.4 (Minor):       Affects a specific neighborhood; small cost increases
+0.5–0.6 (Moderate):    Affects a district or demographic; measurable financial harm
+0.7–0.8 (Severe):      City-wide impact; significant safety, housing, or cost-of-living harm
+0.9–1.0 (Catastrophic): Systemic exploitation affecting entire population; irreversible damage
+
+=== BENEFIT SCORE CALIBRATION ===
+0.0–0.2: Minor procedural advantage for the target entity
+0.3–0.5: Meaningful cost savings or compliance avoidance
+0.6–0.8: Large competitive advantage or systematic penalty evasion
+0.9–1.0: Complete regulatory capture; entity operates above the law
 """.strip()
 
     return LlmAgent(
@@ -609,6 +657,19 @@ Output ONLY valid JSON. No preamble, no markdown:
 
 Consider: competitive fairness, compliance cost asymmetry, market entry barriers,
 supply chain impacts, investment risk, and regulatory arbitrage opportunities.
+
+=== HARM SCORE CALIBRATION (USE THESE ANCHORS) ===
+0.0–0.2 (Negligible):  Affects <100 people; minor inconvenience; no financial loss
+0.3–0.4 (Minor):       Affects a specific neighborhood; small cost increases
+0.5–0.6 (Moderate):    Affects a district or demographic; measurable financial harm
+0.7–0.8 (Severe):      City-wide impact; significant safety, housing, or cost-of-living harm
+0.9–1.0 (Catastrophic): Systemic exploitation affecting entire population; irreversible damage
+
+=== BENEFIT SCORE CALIBRATION ===
+0.0–0.2: Minor procedural advantage for the target entity
+0.3–0.5: Meaningful cost savings or compliance avoidance
+0.6–0.8: Large competitive advantage or systematic penalty evasion
+0.9–1.0: Complete regulatory capture; entity operates above the law
 """.strip()
 
     return LlmAgent(
