@@ -182,7 +182,7 @@ class CanonicalExploit(BaseModel):
 
     summary: str                                        # ≤ 250 tokens, one clean paragraph
     exploit_vector: ExploitVector
-    primary_citations: tuple[StatutoryCitation, ...]    # Supporting evidence from debate
+    primary_citation_ids: tuple[str, ...]               # Section IDs referenced from debate
     is_novel: bool                                      # False if dedup check forced early exit
 
 
@@ -199,7 +199,7 @@ class StakeholderScore(BaseModel):
 
     stakeholder_type: Literal["citizen", "business"]
     harm_score: float                      # 0.0–1.0 (1.0 = catastrophic harm to this group)
-    benefit_score: float                   # 0.0–1.0 (1.0 = massive benefit to exploiter)
+    benefit_score: float | int             # 0.0-1.0 float OR 1-10 int (depends on proxy)
     affected_population: str               # Narrative description of who is affected
     priority_concerns: tuple[str, ...]     # 3–5 key concerns from this perspective
     confidence: float                      # 0.0–1.0
@@ -208,6 +208,20 @@ class StakeholderScore(BaseModel):
 # ===================================================================
 # FINAL OUTPUT: LoopholeReport
 # ===================================================================
+
+class JudgeVerdict(BaseModel):
+    """
+    The direct output of the JudgeAgent. 
+    runner.py combines this with state metadata to build the LoopholeReport.
+    """
+    model_config = ConfigDict(frozen=True)
+    
+    severity_classification: SeverityClassification
+    legal_confidence_score: float               # 0.0–1.0, assigned by JudgeAgent
+    affected_population_estimate: str            # Combined cross-stakeholder narrative
+    remediation_recommendation: str             # Specific statutory amendment to close gap
+    raw_judge_reasoning: str                    # Full Judge chain-of-thought
+
 
 class LoopholeReport(BaseModel):
     """
@@ -312,6 +326,7 @@ class PolicyAuditState(BaseModel):
     business_score: StakeholderScore | None = None
 
     # --- Final output ---
+    judge_verdict: JudgeVerdict | None = None
     final_report: LoopholeReport | None = None
 
     def to_session_dict(self) -> dict:
@@ -355,6 +370,7 @@ class PolicyAuditState(BaseModel):
             "canonical_exploit_json": "{}",
             "citizen_score_json": "{}",
             "business_score_json": "{}",
+            "judge_verdict_json": "{}",
             "final_report_json": "{}",
         }
 
@@ -376,12 +392,16 @@ class PolicyAuditState(BaseModel):
         except (json.JSONDecodeError, TypeError):
             debate_history = original.debate_history
 
-        # Attempt to parse final report
-        final_report = None
-        report_json = session_dict.get("final_report_json", "{}")
-        if report_json and report_json != "{}":
+        # Attempt to parse judge verdict
+        judge_verdict = None
+        verdict_json = session_dict.get("judge_verdict_json", "{}")
+        if verdict_json and verdict_json != "{}":
             try:
-                final_report = LoopholeReport.model_validate_json(report_json)
+                # Need to strip fences here as well since Pydantic will fail if it sees markdown
+                import re
+                cleaned = re.sub(r"^```(?:json)?\s*", "", verdict_json.strip())
+                cleaned = re.sub(r"\s*```$", "", cleaned.strip())
+                judge_verdict = JudgeVerdict.model_validate_json(cleaned)
             except Exception:
                 pass
 
@@ -389,7 +409,8 @@ class PolicyAuditState(BaseModel):
             "current_turn": session_dict.get("current_turn", original.current_turn),
             "loop_should_continue": session_dict.get("loop_should_continue", True),
             "debate_history": debate_history,
-            "final_report": final_report,
+            "judge_verdict": judge_verdict,
+            "final_report": original.final_report,
         })
 
 

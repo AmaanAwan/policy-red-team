@@ -84,6 +84,7 @@ from src.orchestration.state import (
     TurnVerdict,
     _format_history_as_text,
 )
+from src.orchestration.tools import parse_mcp_response
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,60 @@ def _make_loop_guard_callback(round_num: int):
         return None  # Proceed with agent execution
 
     return guard
+
+
+def _make_mcp_parser_callback(role: str, round_num: int):
+    """
+    Returns an after_agent_callback that scans the session events for
+    tool responses, parses them, and adds the resulting RetrievalTrace 
+    objects to state["retrieval_provenance"].
+    """
+    def callback(
+        callback_context: CallbackContext,
+    ) -> Optional[genai_types.Content]:
+        events = getattr(callback_context.session, "events", [])
+        if not events:
+            return None
+
+        new_traces = []
+        for event in reversed(events):
+            try:
+                # Convert the event to a dict/string safely
+                event_dict = event.model_dump()
+                event_str = str(event_dict)
+            except Exception:
+                event_str = str(event)
+
+            # Check if this event looks like a search tool response
+            if "search_policy_documents" in event_str or "google_search" in event_str:
+                trace_hash = hash(event_str)
+                
+                processed_hashes = callback_context.state.get("processed_trace_hashes", [])
+                if trace_hash not in processed_hashes:
+                    # parse_mcp_response will regex match the ### Retrieved Section headers
+                    trace = parse_mcp_response(
+                        raw_response=event_str,
+                        agent_role=role,
+                        turn_number=round_num,
+                        query="[Intercepted tool call]",
+                    )
+                    
+                    if trace.citations_extracted:
+                        new_traces.append(trace)
+                        
+                    # Always mark as processed to avoid re-parsing ToolCalls that have no citations
+                    processed_hashes.append(trace_hash)
+                    callback_context.state["processed_trace_hashes"] = processed_hashes
+
+        if new_traces:
+            existing = list(callback_context.state.get("retrieval_provenance", []))
+            # Reverse back so chronological order is preserved
+            existing.extend(reversed(new_traces))
+            callback_context.state["retrieval_provenance"] = tuple(existing)
+            logger.info("Intercepted %d tool responses for %s", len(new_traces), role)
+
+        return None
+    return callback
 
 
 def _make_after_summarizer_callback(round_num: int):
@@ -307,6 +362,10 @@ def _build_debate_round(
     # Attach state-management callbacks to summarizer and dedup
     summarizer.after_agent_callback = _make_after_summarizer_callback(round_num)
     dedup.after_agent_callback = _make_after_dedup_callback(round_num)
+    
+    # Attach MCP parser callbacks to Attacker and Defender
+    attacker.after_agent_callback = _make_mcp_parser_callback("AttackerAgent", round_num)
+    defender.after_agent_callback = _make_mcp_parser_callback("DefenderAgent", round_num)
 
     # Build the round as a SequentialAgent
     round_agent = SequentialAgent(

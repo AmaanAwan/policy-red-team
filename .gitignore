@@ -24,9 +24,20 @@ venv/
 env/
 
 # ============================
-# Persisted Storage (generated)
+# Persisted Storage, Databases & User Data
 # ============================
 storage/
+uploads/
+reports/
+feedback/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sql
+*.json.bak
 
 # ============================
 # IDE / Editor

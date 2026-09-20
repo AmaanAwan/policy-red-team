@@ -261,16 +261,16 @@ By compressing raw MCP tool search outputs into structured 150–200 token `Turn
 
 ### 7.2 Automated Pytest Verification Suite
 
-Automated testing is executed via `pytest tests/ -v`. All 32 test cases across system boundaries pass cleanly:
+Automated testing is executed via `pytest tests/ -v`. All 36 test cases across system boundaries pass cleanly:
 
 | Test Module | Target Primitives | Test Cases | Status |
 |---|---|---|---|
-| `tests/test_api_auth.py` | `main.py` (FastAPI Endpoints) | Master Admin auth, demo tester auth, invalid passcode gating, user reports scoping, admin authorization, passcode generation/deletion | ✅ 5/5 Passed |
-| `tests/test_db.py` | `src/db.py` (Persistence & Quotas) | SQLite initialization, passcode verification, quota limits, pre-flight analysis gating, report persistence, admin quota adjustment | ✅ 8/8 Passed |
+| `tests/test_api_auth.py` | `main.py` (FastAPI Endpoints) | Master Admin auth, demo tester auth, invalid passcode gating, user reports scoping, admin authorization, passcode generation/deletion, demo deletion restriction (403), report PDF endpoint | ✅ 8/8 Passed |
+| `tests/test_db.py` | `src/db.py` (Persistence & Quotas) | SQLite initialization, demo report seeding, passcode verification, quota limits, pre-flight analysis gating, report persistence, delete report permissions, admin quota adjustment | ✅ 9/9 Passed |
 | `tests/test_state.py` | `src/orchestration/state.py` | Document roles serialization, web search toggle, Pydantic immutability, `TurnSummary` compression, session state serialization | ✅ 8/8 Passed |
 | `tests/test_tools.py` | `src/orchestration/tools.py` | Regex AST metadata parser, FAISS score parsing, section ID extraction, page number extraction, empty response fallback, quote capping | ✅ 9/9 Passed |
 | `tests/test_embeddings.py` | `src/embeddings.py` | Vertex AI text-embedding-004 initialization and credential failure validation | ✅ 2/2 Passed |
-| **Total** | **Full System Boundaries** | **32 Automated Test Cases** | **✅ 32/32 Passed (100%)** |
+| **Total** | **Full System Boundaries** | **36 Automated Test Cases** | **✅ 36/36 Passed (100%)** |
 
 ---
 
@@ -282,10 +282,23 @@ To enable secure beta evaluation across distributed testing groups while operati
 - **Fast Local Execution:** SQLite configured with Write-Ahead Logging (WAL mode) handles concurrent session validation and local report indexing.
 - **Durable Serverless Bridging:** Whenever passcodes are created or audit reports are generated, they are immediately synchronized to Google Cloud Storage (`gs://{GCS_BUCKET}/auth/passcodes.json` and `gs://.../reports/reports_index.json`).
 - **Cold-Start Hydration:** On container startup or new revision redeployments, `init_db()` automatically restores passcodes, quotas, and report histories from GCS into SQLite.
-- **Uploaded Document Archival:** Uploaded target and parent PDFs are preserved in `gs://{GCS_BUCKET}/uploads/`, ensuring no documents are lost across autoscaling events.
+- **Uploaded Document Archival:** Uploaded target and parent PDFs are preserved in `storage/uploads/{report_id}/` locally and mirrored to `gs://{GCS_BUCKET}/uploads/`, ensuring documents remain retrievable across autoscaling events.
 
 ### 8.2 Role-Based Quota Gating (RBAC)
 - **Master Administrator:** Configured via `APP_PASSWORD`, grants unlimited audit quota and full access to the Administrator Console (passcode creation, quota adjustments, and cross-user report auditing).
 - **Test Users:** Authenticate via assigned passcodes with strictly enforced report quotas (e.g. 5 audits). Analysis executions are pre-flight validated; when exhausted, requests are blocked with advisory prompts.
-- **Sample Demonstration Mode:** Passcode `DEMO-SAMPLE-2026` provides immediate access to pre-seeded real-world audit data (CDA Speed Breakers) for instant zero-friction exploration.
+
+### 8.3 Demonstration Account (`DEMO!`) Security & Quotas
+- **1-Click Authentication:** Provides instant one-click login from the logon screen via the `Use DEMO!` button, routing testers directly to historical demonstration audits without credential barriers.
+- **Deletion Protection:** Demo accounts are strictly prohibited from deleting demonstration reports, both via client-side UI omission and backend HTTP 403 enforcement.
+- **Quota Shielding:** Numerical remaining counters are masked from the interface (`Quota: Demo Account`), preventing UI clutter while preserving hard quota limits on backend generation.
+- **Automatic Seeding:** `init_db()` automatically seeds pre-compiled adversarial audit reports for `DEMO!` on database initialization.
+
+### 8.4 Historical Report Scoping & Read-Only Ingestion Locking
+- **Full Scoping Provenance:** Every generated report persists its original `target_pdf`, `parent_pdf`, `jurisdiction`, `jurisdiction_level`, `target_entity`, `custom_instructions`, and `enable_web_search`.
+- **Dual Scoping Inspection:** Opening a past report re-populates both **Policy PDF Ingestion (Dual Scoping)** with attached document badges (plus `[ 📥 View ]` links) and **Audit Configuration & Focus**.
+- **Tamper-Proof Read-Only Locking:** Drop zones and configuration controls are locked into a read-only state while viewing historical reports to preserve evidentiary integrity. A **`[ ➕ Start New Audit ]`** action cleanly resets and unlocks all controls.
+
+### 8.5 Repository Data Privacy & Quarantined Persistence
+- **Zero Cloud Leakage:** All SQLite databases (`*.db`, `*.db-wal`), user uploads (`uploads/`), generated reports (`storage/reports/`), vector indices (`storage/faiss/`), and feedback records are strictly quarantined and excluded from Git version control via wildcard rules in `.gitignore`.
 

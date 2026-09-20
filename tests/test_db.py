@@ -161,3 +161,29 @@ class TestDatabaseReports:
         all_reps = get_all_reports()
         assert len(all_reps) >= 1
         assert any(r["report_id"] == "rep-999" for r in all_reps)
+
+    def test_delete_report_permissions(self):
+        from src.db import delete_report
+        # Setup reports for tester and demo
+        code = "TESTER-BOB"
+        create_passcode(label="Bob", report_limit=5, custom_passcode=code)
+        rep_bob = {"session_id": "rep-bob-1", "jurisdiction": "Sindh", "policy_document": "sindh.pdf"}
+        record_report("rep-bob-1", code, "Bob", rep_bob)
+
+        rep_demo = {"session_id": "rep-demo-1", "jurisdiction": "Islamabad", "policy_document": "cda.pdf"}
+        record_report("rep-demo-1", "DEMO!", "Demo User", rep_demo)
+
+        # 1. Demo user CANNOT delete reports
+        assert delete_report("rep-demo-1", passcode="DEMO!", is_admin=False) is False
+        assert get_report_by_id("rep-demo-1") is not None
+
+        # 2. Regular user cannot delete another user's report
+        assert delete_report("rep-demo-1", passcode=code, is_admin=False) is False
+
+        # 3. Regular user CAN delete their own report
+        assert delete_report("rep-bob-1", passcode=code, is_admin=False) is True
+        assert get_report_by_id("rep-bob-1") is None
+
+        # 4. Admin CAN delete any report (including demo report)
+        assert delete_report("rep-demo-1", passcode=MASTER_ADMIN_PASSWORD, is_admin=True) is True
+        assert get_report_by_id("rep-demo-1") is None

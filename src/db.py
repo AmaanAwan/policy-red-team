@@ -104,10 +104,14 @@ def init_db() -> None:
             conn.commit()
             logger.info("Master Admin passcode registered in database.")
 
-        # Seed Default Beta Tester Passcodes
+        # Remove legacy DEMO-SAMPLE-2026 if present
+        conn.execute("DELETE FROM passcodes WHERE passcode = 'DEMO-SAMPLE-2026'")
+        conn.execute("DELETE FROM reports WHERE passcode = 'DEMO-SAMPLE-2026'")
+
+        # Seed Default Passcodes
         for code, label, limit in [
             ("TEST-LAW-2026", "Beta Policy Tester", 5),
-            ("DEMO-SAMPLE-2026", "Sample Demonstration User", 10),
+            ("DEMO!", "Pre-Compiled Demonstration Account", 5),
         ]:
             conn.execute(
                 """
@@ -118,34 +122,37 @@ def init_db() -> None:
             )
         conn.commit()
 
-        # Load any local sample reports into database
-        if REPORTS_DIR.exists():
-            for r_file in REPORTS_DIR.glob("*.json"):
+        # Seed pre-compiled demo reports if none exist for DEMO!
+        demo_report_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM reports WHERE passcode = 'DEMO!'"
+        ).fetchone()["c"]
+        if demo_report_count == 0 and REPORTS_DIR.exists():
+            for json_file in sorted(REPORTS_DIR.glob("*.json")):
                 try:
-                    data = json.loads(r_file.read_text(encoding="utf-8"))
-                    r_id = data.get("session_id", r_file.stem)
-                    existing = conn.execute("SELECT report_id FROM reports WHERE report_id = ?", (r_id,)).fetchone()
-                    if not existing:
-                        conn.execute(
-                            """
-                            INSERT OR IGNORE INTO reports
-                            (report_id, passcode, user_label, policy_document, jurisdiction, severity, exploit_vector, created_at, report_json)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                r_id,
-                                "DEMO-SAMPLE-2026",
-                                "Sample Demonstration User",
-                                data.get("policy_document", "policy1.pdf"),
-                                data.get("jurisdiction", "Islamabad, Pakistan"),
-                                data.get("severity_classification", "High"),
-                                data.get("exploit_vector", data.get("canonical_exploit", {}).get("exploit_vector", "Jurisdictional Arbitrage")),
-                                now,
-                                json.dumps(data, indent=2),
-                            ),
-                        )
+                    rep_dict = json.loads(json_file.read_text(encoding="utf-8"))
+                    r_id = rep_dict.get("session_id", json_file.stem)
+                    p_doc = rep_dict.get("policy_document", "Sample Policy")
+                    juris = rep_dict.get("jurisdiction", "Islamabad, Pakistan")
+                    sev = rep_dict.get("severity_classification", "High")
+                    exploit = rep_dict.get("exploit_vector", "Jurisdictional Arbitrage")
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO reports
+                        (report_id, passcode, user_label, policy_document, jurisdiction, severity, exploit_vector, created_at, report_json)
+                        VALUES (?, 'DEMO!', 'Pre-Compiled Demonstration Account', ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            r_id,
+                            p_doc,
+                            juris,
+                            sev,
+                            exploit,
+                            now,
+                            json.dumps(rep_dict, indent=2),
+                        ),
+                    )
                 except Exception as exc:
-                    logger.warning(f"Could not load pre-seeded report {r_file}: {exc}")
+                    logger.warning(f"Could not seed demo report {json_file}: {exc}")
             conn.commit()
 
     # Attempt restore/sync from GCS if available
@@ -438,11 +445,16 @@ def delete_report(report_id: str, passcode: str, is_admin: bool = False) -> bool
 
     Users can only delete their own reports (passcode must match).
     Admins can delete any report.
+    Reports under 'DEMO!' cannot be deleted by non-admins.
     Quota (reports_used) is intentionally NOT decremented — deletion
     does not restore generation capacity.
 
     Returns True if the report was found and deleted, False otherwise.
     """
+    if passcode == "DEMO!" and not is_admin:
+        logger.warning("Unauthorized delete attempt on DEMO! pre-compiled reports.")
+        return False
+
     with get_db_connection() as conn:
         if is_admin:
             row = conn.execute(

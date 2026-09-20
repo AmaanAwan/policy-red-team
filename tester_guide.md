@@ -53,8 +53,10 @@ If you are a private entity (like a housing society, developer, or corporation) 
    👉 **[https://policy-red-team-823348514584.us-central1.run.app](https://policy-red-team-823348514584.us-central1.run.app)**
 2. In the classic **"Log On to Policy Red Team"** dialog:
    - Enter your **Assigned Tester Passcode** (e.g., `TEST-LAW-2026`).
-   - *Tip:* To explore immediately with pre-loaded audit data without uploading files, enter **`DEMO-SAMPLE-2026`**.
-3. Upon logon, review the **Testing Guidelines** modal and click **Got it — Enter Platform**.
+   - *Instant Demo:* Click the **`[ Use DEMO! ]`** button or the **`DEMO!`** badge for 1-click instant login without needing to enter a passcode.
+3. Upon logon:
+   - Regular testers review the **Testing Guidelines** modal and click **Got it — Enter Platform**.
+   - Demo accounts (`DEMO!`) are routed directly to the **My Past Reports** tab to explore pre-compiled demonstration reports. Demo accounts feature streamlined quota shielding (`Quota: Demo Account`), permit generation if capacity remains, and protect pre-compiled reports from deletion.
 
 ---
 
@@ -101,9 +103,14 @@ Inspect the structured audit output:
 
 ---
 
-### Step 6: Export Reports & History
+### Step 6: Inspect Historical Reports & Scoping Parameters
+- **📁 My Past Reports Tab:** Switch to the reports tab to view all previous audits recorded under your account.
+- **📂 Open Past Report Action:**
+  - Clicking **`[ 📂 Open ]`** reloads the full audit verdict, stakeholder impacts, and adversarial debate.
+  - **Dual Scoping Inspection:** Automatically fills **Policy PDF Ingestion (Dual Scoping)** with the exact **Target Policy** and **Parent Statute** attached to that audit, including **`[ 📥 View ]`** buttons to view or download the original PDFs.
+  - **Configuration Lock:** Automatically fills **Audit Configuration & Focus** (Jurisdiction Level, Location, Target Entity, Custom Directives, Web Search) and **locks all inputs into read-only mode** to prevent accidental modifications while inspecting the verdict.
+  - **➕ Start New Audit:** Click the top banner button **`[ ➕ Start New Audit ]`** at any time to unlock all form controls, clear the inputs, and reset the drop zones for a fresh audit.
 - **Download Options:** Export reports in **JSON** (raw structured data), **Text (.txt)**, or **Markdown (.md)**.
-- **📁 My Past Reports Tab:** Switch to the second tab to view all previous audits generated under your passcode, and click **`[ 📂 Open ]`** to reload any past verdict.
 
 ---
 

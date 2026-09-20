@@ -239,10 +239,44 @@ async def analyze_policies(
             )
             
             report_dict = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else report.model_dump()
-            
+            report_id = report_dict.get("session_id", str(uuid.uuid4()))
+
+            # Identify target and parent pdf names from doc_roles or pdf_names
+            target_pdf = ""
+            parent_pdf = ""
+            for role_item in doc_roles:
+                if isinstance(role_item, dict):
+                    if role_item.get("role") == "target":
+                        target_pdf = role_item.get("filename", "")
+                    elif role_item.get("role") == "parent":
+                        parent_pdf = role_item.get("filename", "")
+
+            if not target_pdf and pdf_names:
+                target_pdf = pdf_names[0]
+            if not parent_pdf and len(pdf_names) > 1:
+                parent_pdf = pdf_names[1]
+
+            # Save uploaded PDFs locally in storage/uploads/{report_id}
+            upload_save_dir = Path("storage") / "uploads" / report_id
+            upload_save_dir.mkdir(parents=True, exist_ok=True)
+            for f_data in files_data:
+                clean_f_name = Path(f_data["name"]).name
+                (upload_save_dir / clean_f_name).write_bytes(f_data["bytes"])
+
+            # Store full scoping parameters for past reports inspection
+            report_dict["target_pdf"] = target_pdf
+            report_dict["parent_pdf"] = parent_pdf
+            report_dict["jurisdiction"] = j_dist
+            report_dict["jurisdiction_level"] = j_level
+            report_dict["target_entity"] = t_entity
+            report_dict["custom_instructions"] = custom_instructions or ""
+            report_dict["enable_web_search"] = web_search_enabled
+            report_dict["document_roles"] = doc_roles
+            report_dict["attached_files"] = [f["name"] for f in files_data]
+
             # Persist report to database and mirror to cloud storage
             record_report(
-                report_id=report_dict.get("session_id", str(uuid.uuid4())),
+                report_id=report_id,
                 passcode=password,
                 user_label=user_info["label"],
                 report_data=report_dict,
@@ -278,14 +312,34 @@ async def get_report_details(report_id: str, passcode: str):
         raise HTTPException(status_code=404, detail="Report not found")
     return report
 
+@app.get("/api/reports/{report_id}/pdf/{filename}")
+async def get_report_pdf(report_id: str, filename: str, passcode: str):
+    """Serve or download attached PDFs for a specific report."""
+    info = verify_passcode(passcode)
+    if not info:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
+    clean_name = Path(filename).name
+    # Check report upload directory
+    p_upload = Path("storage") / "uploads" / report_id / clean_name
+    if p_upload.exists():
+        return FileResponse(p_upload, media_type="application/pdf", filename=clean_name)
+    # Check data directory fallback
+    p_data = Path("data") / clean_name
+    if p_data.exists():
+        return FileResponse(p_data, media_type="application/pdf", filename=clean_name)
+    raise HTTPException(status_code=404, detail="Attached PDF document not found on server")
+
 
 @app.delete("/api/reports/{report_id}")
 async def delete_report_endpoint(report_id: str, passcode: str):
     """Delete a report by ID. Users can only delete their own; admins can delete any.
+    Demo users cannot delete demonstration reports.
     Quota (reports_used) is NOT restored — deletion does not refund generation capacity."""
     info = verify_passcode(passcode)
     if not info:
         raise HTTPException(status_code=401, detail="Invalid passcode")
+    if passcode == "DEMO!" and not info["is_admin"]:
+        raise HTTPException(status_code=403, detail="Demo users cannot delete demonstration reports.")
     success = delete_report(report_id, passcode=passcode, is_admin=info["is_admin"])
     if not success:
         raise HTTPException(status_code=404, detail="Report not found or not authorized to delete")

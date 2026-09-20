@@ -230,53 +230,144 @@ def _extract_report(session_state: dict, state: PolicyAuditState) -> LoopholeRep
     """
     Extract and validate the LoopholeReport from ADK session state.
 
-    Attempts to parse final_report_json via Pydantic. If parsing fails
-    (e.g., Judge produced malformed JSON), logs the error and raises
-    with the raw JSON for debugging.
-
-    Args:
-        session_state: The final session state dict from InMemorySessionService.
-        state:         Original PolicyAuditState (for error context).
-
-    Returns:
-        Validated LoopholeReport.
-
-    Raises:
-        ValueError: If final_report_json is missing or fails Pydantic validation.
+    Assembles the final report by extracting the raw JSON outputs of the 
+    Canonicalizer, Proxies, and Judge, and merging them with the intercepted
+    retrieval provenance.
     """
-    raw_json = session_state.get("final_report_json", "").strip()
+    def _parse_json_field(key: str, default: dict = None):
+        raw = session_state.get(key, "{}").strip()
+        if raw.startswith("```"):
+            import re
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"\s*```$", "", raw.strip())
+        try:
+            import json
+            return json.loads(raw)
+        except Exception as e:
+            logger.warning(f"Failed to parse {key}: {e}")
+            return default or {}
 
-    if not raw_json or raw_json == "{}":
-        raise ValueError(
-            "final_report_json is empty after workflow completion. "
-            f"Session ID: {state.session_id}. "
-            "This usually means the JudgeAgent did not run or produced no output. "
-            "Check ADK event logs for errors in the JudgeAgent step."
-        )
+    verdict_data = _parse_json_field("judge_verdict_json")
+    if not verdict_data:
+        raise ValueError(f"judge_verdict_json is empty. Session ID: {state.session_id}.")
 
-    # Strip Markdown code block fences (e.g., ```json ... ```) if present
-    if raw_json.startswith("```"):
-        lines = raw_json.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        raw_json = "\n".join(lines).strip()
+    canonical_data = _parse_json_field("canonical_exploit_json")
+    citizen_data = _parse_json_field("citizen_score_json")
+    business_data = _parse_json_field("business_score_json")
+    
+    from src.orchestration.state import (
+        CanonicalExploit, StakeholderScore, JudgeVerdict, 
+        RetrievalTrace, StatutoryCitation
+    )
+    
+    # Retrieve the intercepted tool traces
+    provenance = tuple(session_state.get("retrieval_provenance", []))
+    
+    # Build a lookup map of section_id -> StatutoryCitation for grounding
+    citation_map = {}
+    for trace in provenance:
+        for citation in trace.citations_extracted:
+            # Only keep the highest scoring citation for a given section
+            existing = citation_map.get(citation.section_id)
+            if not existing or citation.retrieval_score > existing.retrieval_score:
+                citation_map[citation.section_id] = citation
+
+    # Reconstruct StatutoryCitation objects for the canonical exploit
+    primary_citations = []
+    for sid in canonical_data.get("primary_citation_ids", []):
+        if sid in citation_map:
+            primary_citations.append(citation_map[sid])
+        else:
+            primary_citations.append(StatutoryCitation(
+                section_id=sid,
+                source_document="[Unknown or Hallucinated]",
+                page_number=None,
+                quoted_text="[Could not be grounded in retrieved text]",
+                retrieval_score=0.0
+            ))
+            
+    # The final report includes all uniquely cited sections from the debate
+    debate_history_json = _parse_json_field("debate_history_json", default=[])
+    all_cited_sections = set()
+    for turn in debate_history_json:
+        all_cited_sections.update(turn.get("attacker_citations", []))
+        all_cited_sections.update(turn.get("defender_citations", []))
+    
+    # Also include the canonical ones to be perfectly safe
+    all_cited_sections.update(canonical_data.get("primary_citation_ids", []))
+    
+    statutory_citations = []
+    for sid in all_cited_sections:
+        if sid in citation_map:
+            statutory_citations.append(citation_map[sid])
+        else:
+            # Fallback for LLM hallucinated IDs or strictly-parsed sections
+            if "[Unidentified Section]" in citation_map:
+                unidentified = citation_map["[Unidentified Section]"]
+                statutory_citations.append(StatutoryCitation(
+                    section_id=sid,
+                    source_document=unidentified.source_document,
+                    page_number=unidentified.page_number,
+                    quoted_text=unidentified.quoted_text,
+                    retrieval_score=unidentified.retrieval_score
+                ))
+            else:
+                statutory_citations.append(StatutoryCitation(
+                    section_id=sid,
+                    source_document="[Unknown or Hallucinated]",
+                    page_number=None,
+                    quoted_text="[Could not be grounded in retrieved text. LLM generated this citation.]",
+                    retrieval_score=0.0
+                ))
 
     try:
-        report = LoopholeReport.model_validate_json(raw_json)
+        report = LoopholeReport(
+            session_id=state.session_id,
+            jurisdiction=state.jurisdiction,
+            jurisdiction_level=state.jurisdiction_level,
+            target_entity=state.target_entity,
+            policy_document=state.policy_document,
+            
+            exploit_vector=canonical_data.get("exploit_vector", "Definitional Gap"),
+            severity_classification=verdict_data.get("severity_classification", "Low"),
+            legal_confidence_score=verdict_data.get("legal_confidence_score", 0.0),
+            
+            canonical_exploit=CanonicalExploit(
+                summary=canonical_data.get("summary", ""),
+                exploit_vector=canonical_data.get("exploit_vector", "Definitional Gap"),
+                primary_citation_ids=tuple(canonical_data.get("primary_citation_ids", [])),
+                is_novel=canonical_data.get("is_novel", True)
+            ),
+            
+            statutory_citations=tuple(statutory_citations),
+            debate_transcript=state.from_session_dict(session_state, state).debate_history,
+            retrieval_provenance=provenance,
+            
+            citizen_score=StakeholderScore(**citizen_data) if citizen_data else None,
+            business_score=StakeholderScore(**business_data) if business_data else None,
+            
+            affected_population_estimate=verdict_data.get("affected_population_estimate", ""),
+            remediation_recommendation=verdict_data.get("remediation_recommendation", ""),
+            
+            model_versions_used={
+                "attacker": "gemini-3.1-pro-preview",
+                "defender": "gemini-3.1-pro-preview",
+                "turn_summarizer": "gemini-3.6-flash",
+                "deduplication": "gemini-3.6-flash",
+                "exploit_canonicalizer": "gemini-3.6-flash",
+                "citizen_proxy": "gemini-3.6-flash",
+                "business_proxy": "gemini-3.6-flash",
+                "judge": "gemini-3.1-pro-preview"
+            },
+            raw_judge_reasoning=verdict_data.get("raw_judge_reasoning", "")
+        )
         logger.info("✓ LoopholeReport validated successfully.")
         return report
     except Exception as exc:
         logger.error(
-            "LoopholeReport Pydantic validation failed: %s\n"
-            "Raw JSON (first 500 chars): %s",
-            exc, raw_json[:500],
+            "LoopholeReport construction failed: %s\n", exc
         )
-        raise ValueError(
-            f"JudgeAgent output failed Pydantic validation: {exc}\n"
-            f"Raw output: {raw_json[:500]}"
-        ) from exc
+        raise ValueError(f"Report construction failed: {exc}") from exc
 
 
 # ===================================================================

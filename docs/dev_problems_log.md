@@ -213,6 +213,8 @@ This document presents a deep-tech architectural retrospective of the engineerin
 | Closed-World RAG Gap | Missing parent statutes outside vector store | Asymmetric Google Search + Provenance Penalty | Open-World Grounding Augmentation |
 | Ephemeral Serverless Loss | Stateless Cloud Run instance recycling | Hybrid SQLite-GCS Mirroring & Quota Gatekeeper | Stateless-to-Stateful Serverless Bridging |
 | Tool Multiplexing Failure | Server/Client-side tool routing rejection | Set `include_server_side_tool_invocations=True` | API Capabilities & Payload Config |
+| Proxy Score Coercion | Strict Pydantic int validation vs LLM float | `float \| int` schema + Prompt anchoring | Schema Flexibility & Anchoring |
+| Missing Evidence Fallback | Regex parsing failure for irregular PDF headers | Fallback to highest-scoring unidentified citation | Data Mapping & Fallback |
 
 ---
 
@@ -222,3 +224,21 @@ This document presents a deep-tech architectural retrospective of the engineerin
 * **Root Cause Analysis:** Vertex AI's Gemini API strictly partitions server-side built-in tools (e.g., Google Search grounding) and client-side functional tools (e.g., MCP custom python tools). When both are provided to the model in a single request, the API requires explicit opt-in via the `include_server_side_tool_invocations` flag in the `tool_config` payload.
 * **Remediation & Architecture Fix:** Updated `src/orchestration/agents.py` to dynamically inject a custom `GenerateContentConfig` overriding the `tool_config` on the `DefenderAgent`'s `LlmAgent` instantiation whenever `enable_web_search` is active.
 * **Technical Pattern:** Tool Multiplexing, Server/Client-Side Invocation Routing, SDK Flag Configuration.
+
+---
+
+## 21. Data Validation: Pydantic Float/Integer Coercion & Prompt Anchoring
+
+* **Problem:** Validation error during `CitizenProxyAgent` output parsing due to fractional values (e.g., 0.8) for `benefit_score` instead of an integer.
+* **Root Cause Analysis:** Pydantic's strict typing expected an integer, but LLM output lacked strong numerical anchoring in the prompt and defaulted to returning float values (0.0 to 1.0).
+* **Remediation & Architecture Fix:** Updated the `StakeholderScore` model to accept `float | int` to prevent immediate crashes, and overhauled the `create_citizen_proxy_agent` system prompt with a strict 1-10 integer scoring rubric.
+* **Technical Pattern:** Multi-Type Data Coercion, Prompt Semantic Anchoring, Schema Flexibility.
+
+---
+
+## 22. Provenance Parsing: Unidentified Section Regex Fallback
+
+* **Problem:** Hallucinated high-severity loopholes caused by the `DefenderAgent`'s valid counter-arguments being stripped of quoted text and dropped from the final `LoopholeReport`.
+* **Root Cause Analysis:** Irregular PDF formatting caused the MCP regex parser (`_SECTION_ID_RE`) to fail, tagging crucial defensive clauses as `[Unidentified Section]`. The report extraction logic in `runner.py` did not properly map these unidentified sections back to their raw source text, leaving the `JudgeAgent` with no legal evidence.
+* **Remediation & Architecture Fix:** Updated `_extract_report()` to implement a robust fallback mechanism. If the LLM cites a section that was parsed as `[Unidentified Section]`, the runner now falls back to the highest-scoring unidentified citation in the `retrieval_provenance` array, preserving the exact quoted text for the Judge.
+* **Technical Pattern:** Regex Parsing Fallback, Evidence Binding, Defensive Data Mapping.

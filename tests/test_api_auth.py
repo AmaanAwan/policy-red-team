@@ -105,3 +105,34 @@ def test_admin_endpoints_authorization(client):
 
     # Deleted passcode no longer works
     assert client.post("/api/auth", data={"password": "API-TEST-CODE"}).status_code == 401
+
+
+def test_auth_demo_passcode(client):
+    res = client.post("/api/auth", data={"password": "DEMO!"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert data["is_admin"] is False
+    assert data["passcode"] == "DEMO!"
+
+
+def test_demo_cannot_delete_report_via_api(client):
+    from src.db import record_report, get_report_by_id
+    rep = {"session_id": "api-demo-rep-1", "jurisdiction": "Islamabad", "policy_document": "policy1.pdf"}
+    record_report("api-demo-rep-1", "DEMO!", "Pre-Compiled Demonstration Account", rep)
+
+    # Demo user attempting delete returns 403 Forbidden
+    res = client.delete("/api/reports/api-demo-rep-1?passcode=DEMO!")
+    assert res.status_code == 403
+    assert "Demo users cannot delete" in res.json()["detail"]
+
+    # Report still exists
+    assert get_report_by_id("api-demo-rep-1") is not None
+
+
+def test_report_pdf_endpoint(client):
+    # data/policy1.pdf exists in the repo
+    res = client.get("/api/reports/api-demo-rep-1/pdf/policy1.pdf?passcode=DEMO!")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+

@@ -50,6 +50,28 @@ const idleState = document.getElementById('idle-state');
 const progressFill = document.getElementById('progress-fill');
 const stepLabel = document.getElementById('step-label');
 
+// Past Report Viewing & Scoping State
+let isViewingPastReport = false;
+const pastReportBanner = document.getElementById('past-report-banner');
+const pastReportBannerDetails = document.getElementById('past-report-banner-details');
+const btnExitPastReport = document.getElementById('btn-exit-past-report');
+
+const targetDropPrompt = document.getElementById('target-drop-prompt');
+const targetDropSubtext = document.getElementById('target-drop-subtext');
+const targetFileViewBtn = document.getElementById('target-file-view-btn');
+
+const parentDropPrompt = document.getElementById('parent-drop-prompt');
+const parentDropSubtext = document.getElementById('parent-drop-subtext');
+const parentFileViewBtn = document.getElementById('parent-file-view-btn');
+
+const jurisdictionLevelInput = document.getElementById('jurisdiction_level');
+const jurisdictionInput = document.getElementById('jurisdiction');
+const targetEntityInput = document.getElementById('target_entity');
+const customInstructionsInput = document.getElementById('custom_instructions');
+const enableWebSearchInput = document.getElementById('enable_web_search');
+const useCaseTemplateSelect = document.getElementById('use_case_template');
+const templateInfo = document.getElementById('template-info');
+
 // ==========================================================================
 // 1. Authentication & Session Flow
 // ==========================================================================
@@ -91,49 +113,17 @@ function loginSuccess(userInfo, showGuide = true) {
 
     statusText.textContent = "Ready";
 
-    // Check if Sample Demo Mode was entered
-    if (userInfo.passcode === "DEMO-SAMPLE-2026" || userInfo.passcode.toUpperCase().includes("SAMPLE")) {
-        preloadSampleDemo();
-    } else if (showGuide) {
-        // Show Testing Instructions & Guidelines Modal upon entering regular passcode
-        instructionsModal.classList.remove('hidden');
+    // If Demo Passcode is used, navigate directly to Past Reports tab without prompt modal
+    if (userInfo.passcode === "DEMO!") {
+        statusText.textContent = "Viewing Pre-Compiled Demonstration Reports";
+        switchTab('tab-past-reports');
+    } else {
+        statusText.textContent = "Ready";
+        if (showGuide) {
+            // Show Testing Instructions & Guidelines Modal upon entering regular passcode
+            instructionsModal.classList.remove('hidden');
+        }
     }
-}
-
-function preloadSampleDemo() {
-    alert(
-        "🧪 Sample Demonstration Mode Active!\n\n" +
-        "You have logged in using demo credentials (DEMO-SAMPLE-2026).\n\n" +
-        "• A real-world sample regulatory audit (CDA Islamabad Speed Breakers Policy) has been pre-loaded.\n" +
-        "• You can immediately inspect the Attacker vs. Defender debate, statutory citations, and Judge verdicts."
-    );
-
-    // Pre-populate configuration fields
-    const jLevel = document.getElementById('jurisdiction_level');
-    const jDist = document.getElementById('jurisdiction');
-    const tEntity = document.getElementById('target_entity');
-    const cInst = document.getElementById('custom_instructions');
-
-    if (jLevel) jLevel.value = "Municipal";
-    if (jDist) jDist.value = "Islamabad, Pakistan";
-    if (tEntity) tEntity.value = "Real Estate Developers & Housing Societies";
-    if (cInst) cInst.value = "Focus on negative criteria for primary emergency response routes and volume thresholds (>3000 vpd).";
-
-    // Show sample document badges
-    targetFileName.textContent = "🎯 CDA_Speed_Breakers_Policy_2019.pdf (Sample)";
-    targetFileBadge.classList.remove('hidden');
-    parentFileName.textContent = "🛡️ CDA_Ordinance_1960.pdf (Sample)";
-    parentFileBadge.classList.remove('hidden');
-
-    // Automatically load the pre-seeded sample report
-    fetch(`/api/user/reports?passcode=${encodeURIComponent(currentUser.passcode)}`)
-        .then(res => res.json())
-        .then(reports => {
-            if (reports && reports.length > 0) {
-                openReportById(reports[0].report_id);
-            }
-        })
-        .catch(err => console.log("Sample load error:", err));
 }
 
 function updateQuotaDisplay() {
@@ -141,7 +131,19 @@ function updateQuotaDisplay() {
     if (currentUser.is_admin || currentUser.report_limit === -1) {
         statusQuota.textContent = "Quota: Unlimited (Admin)";
         quotaWarningBanner.classList.add('hidden');
-        if (targetFile) runBtn.disabled = false;
+        if (targetFile && !isViewingPastReport) runBtn.disabled = false;
+    } else if (currentUser.passcode === "DEMO!") {
+        const remaining = Math.max(0, currentUser.report_limit - currentUser.reports_used);
+        // Do not display numerical report limits to demo users
+        statusQuota.textContent = "Quota: Demo Account";
+        if (remaining <= 0) {
+            runBtn.disabled = true;
+            quotaWarningBanner.innerHTML = `ℹ️ <strong>Demonstration Mode:</strong> Report generation limit reached for this public demo account. Please explore the pre-compiled audit reports in the <strong>"📁 My Past Reports"</strong> tab, or use an assigned tester passcode to run new live audits.`;
+            quotaWarningBanner.classList.remove('hidden');
+        } else {
+            quotaWarningBanner.classList.add('hidden');
+            if (targetFile && !isViewingPastReport) runBtn.disabled = false;
+        }
     } else {
         const remaining = Math.max(0, currentUser.report_limit - currentUser.reports_used);
         statusQuota.textContent = `Quota: ${currentUser.reports_used} / ${currentUser.report_limit} Used (${remaining} left)`;
@@ -152,7 +154,7 @@ function updateQuotaDisplay() {
             quotaWarningBanner.classList.remove('hidden');
         } else {
             quotaWarningBanner.classList.add('hidden');
-            if (targetFile) runBtn.disabled = false;
+            if (targetFile && !isViewingPastReport) runBtn.disabled = false;
         }
     }
 }
@@ -241,16 +243,23 @@ document.getElementById('menu-admin')?.addEventListener('click', () => {
 
 // Target Policy Setup
 targetDropBox.addEventListener('click', (e) => {
+    if (isViewingPastReport) return;
     if (e.target !== btnRemoveTarget) targetFileInput.click();
 });
-targetDropBox.addEventListener('dragover', (e) => { e.preventDefault(); targetDropBox.style.background = "#eef4ff"; });
+targetDropBox.addEventListener('dragover', (e) => { 
+    if (isViewingPastReport) return;
+    e.preventDefault(); 
+    targetDropBox.style.background = "#eef4ff"; 
+});
 targetDropBox.addEventListener('dragleave', () => { targetDropBox.style.background = "#ffffff"; });
 targetDropBox.addEventListener('drop', (e) => {
     e.preventDefault();
+    if (isViewingPastReport) return;
     targetDropBox.style.background = "#ffffff";
     if (e.dataTransfer.files.length > 0) assignTargetFile(e.dataTransfer.files[0]);
 });
 targetFileInput.addEventListener('change', (e) => {
+    if (isViewingPastReport) return;
     if (e.target.files.length > 0) assignTargetFile(e.target.files[0]);
 });
 
@@ -267,6 +276,7 @@ function assignTargetFile(file) {
 
 btnRemoveTarget.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (isViewingPastReport) return;
     targetFile = null;
     targetFileInput.value = "";
     targetFileBadge.classList.add('hidden');
@@ -275,16 +285,23 @@ btnRemoveTarget.addEventListener('click', (e) => {
 
 // Parent Statute Setup
 parentDropBox.addEventListener('click', (e) => {
+    if (isViewingPastReport) return;
     if (e.target !== btnRemoveParent) parentFileInput.click();
 });
-parentDropBox.addEventListener('dragover', (e) => { e.preventDefault(); parentDropBox.style.background = "#f0fff0"; });
+parentDropBox.addEventListener('dragover', (e) => { 
+    if (isViewingPastReport) return;
+    e.preventDefault(); 
+    parentDropBox.style.background = "#f0fff0"; 
+});
 parentDropBox.addEventListener('dragleave', () => { parentDropBox.style.background = "#ffffff"; });
 parentDropBox.addEventListener('drop', (e) => {
     e.preventDefault();
+    if (isViewingPastReport) return;
     parentDropBox.style.background = "#ffffff";
     if (e.dataTransfer.files.length > 0) assignParentFile(e.dataTransfer.files[0]);
 });
 parentFileInput.addEventListener('change', (e) => {
+    if (isViewingPastReport) return;
     if (e.target.files.length > 0) assignParentFile(e.target.files[0]);
 });
 
@@ -566,6 +583,18 @@ async function loadUserReports() {
     if (!currentUser) return;
     const tbody = document.getElementById('user-reports-tbody');
     const countEl = document.getElementById('past-reports-count');
+    const demoBanner = document.getElementById('demo-reports-banner');
+    const legendEl = document.getElementById('past-reports-legend');
+
+    const isDemoUser = (currentUser.passcode === "DEMO!");
+
+    if (demoBanner) {
+        demoBanner.classList.toggle('hidden', !isDemoUser);
+    }
+    if (legendEl) {
+        legendEl.textContent = isDemoUser ? "Pre-Compiled Demonstration Reports" : "My Historical Audit Reports";
+    }
+
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">Loading reports...</td></tr>`;
 
     try {
@@ -573,9 +602,15 @@ async function loadUserReports() {
         if (!res.ok) throw new Error("Failed to load reports");
         const reports = await res.json();
 
-        countEl.textContent = `Total reports generated: ${reports.length}`;
+        countEl.textContent = isDemoUser
+            ? `Total pre-compiled demo reports: ${reports.length}`
+            : `Total reports generated: ${reports.length}`;
+
         if (reports.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666;">No reports generated under this passcode yet.</td></tr>`;
+            const emptyMsg = isDemoUser
+                ? "No pre-compiled demonstration reports available yet."
+                : "No reports generated under this passcode yet.";
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#666;">${emptyMsg}</td></tr>`;
             return;
         }
 
@@ -583,6 +618,10 @@ async function loadUserReports() {
         reports.forEach(r => {
             const tr = document.createElement('tr');
             const dateStr = new Date(r.created_at).toLocaleString();
+            const deleteBtn = isDemoUser
+                ? ''
+                : `<button class="btn-classic btn-danger" onclick="deleteReport('${r.report_id}', false)" title="Delete report (quota not restored)">🗑️</button>`;
+
             tr.innerHTML = `
                 <td>${dateStr}</td>
                 <td><strong>${r.policy_document}</strong></td>
@@ -591,7 +630,7 @@ async function loadUserReports() {
                 <td>${r.exploit_vector}</td>
                 <td>
                     <button class="btn-classic" onclick="openReportById('${r.report_id}')">📂 Open</button>
-                    <button class="btn-classic btn-danger" onclick="deleteReport('${r.report_id}', false)" title="Delete report (quota not restored)">🗑️</button>
+                    ${deleteBtn}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -612,16 +651,163 @@ window.openReportById = async (reportId) => {
         const report = await res.json();
         
         switchTab('tab-audit');
+        isViewingPastReport = true;
+
+        // Display Past Report Banner
+        if (pastReportBanner) {
+            pastReportBanner.classList.remove('hidden');
+            if (pastReportBannerDetails) {
+                pastReportBannerDetails.textContent = `Report ID: ${reportId} · Document: ${report.policy_document || 'Unknown'} · Scoping and Audit Configuration Locked (Read-Only)`;
+            }
+        }
+
+        // Fill & Lock Policy PDF Ingestion (Dual Scoping)
+        let targetDocName = report.target_pdf;
+        let parentDocName = report.parent_pdf;
+
+        if (!targetDocName && report.policy_document) {
+            const parts = report.policy_document.split(',').map(s => s.trim());
+            targetDocName = parts[0] || "Policy Document";
+            if (!parentDocName && parts.length > 1) {
+                parentDocName = parts[1];
+            }
+        }
+        if (!targetDocName) targetDocName = "Audited_Policy.pdf";
+
+        // Target Drop Box: display attached PDF, provide view link, lock drop box
+        targetDropBox.classList.add('locked');
+        targetDropPrompt?.classList.add('hidden');
+        targetDropSubtext?.classList.add('hidden');
+        targetFileName.textContent = `🎯 ${targetDocName}`;
+        targetFileBadge.classList.remove('hidden');
+        btnRemoveTarget.classList.add('hidden');
+        if (targetFileViewBtn) {
+            targetFileViewBtn.href = `/api/reports/${encodeURIComponent(reportId)}/pdf/${encodeURIComponent(targetDocName)}?passcode=${encodeURIComponent(currentUser.passcode)}`;
+            targetFileViewBtn.classList.remove('hidden');
+        }
+
+        // Parent Drop Box: display attached PDF (if any), lock drop box
+        parentDropBox.classList.add('locked');
+        parentDropPrompt?.classList.add('hidden');
+        if (parentDocName) {
+            parentFileName.textContent = `🛡️ ${parentDocName}`;
+            parentFileBadge.classList.remove('hidden');
+            btnRemoveParent.classList.add('hidden');
+            parentDropSubtext?.classList.add('hidden');
+            if (parentFileViewBtn) {
+                parentFileViewBtn.href = `/api/reports/${encodeURIComponent(reportId)}/pdf/${encodeURIComponent(parentDocName)}?passcode=${encodeURIComponent(currentUser.passcode)}`;
+                parentFileViewBtn.classList.remove('hidden');
+            }
+        } else {
+            parentFileBadge.classList.add('hidden');
+            btnRemoveParent.classList.add('hidden');
+            if (parentFileViewBtn) parentFileViewBtn.classList.add('hidden');
+            if (parentDropSubtext) {
+                parentDropSubtext.textContent = 'No parent statute attached to this audit.';
+                parentDropSubtext.classList.remove('hidden');
+            }
+        }
+
+        // Fill & Lock Audit Configuration & Focus
+        if (jurisdictionLevelInput) {
+            jurisdictionLevelInput.value = report.jurisdiction_level || "";
+            jurisdictionLevelInput.disabled = true;
+        }
+        if (jurisdictionInput) {
+            jurisdictionInput.value = report.jurisdiction || "";
+            jurisdictionInput.disabled = true;
+        }
+        if (targetEntityInput) {
+            targetEntityInput.value = report.target_entity || "";
+            targetEntityInput.disabled = true;
+        }
+        if (customInstructionsInput) {
+            customInstructionsInput.value = report.custom_instructions || "";
+            customInstructionsInput.disabled = true;
+        }
+        if (enableWebSearchInput) {
+            enableWebSearchInput.checked = !!report.enable_web_search;
+            enableWebSearchInput.disabled = true;
+        }
+        if (useCaseTemplateSelect) {
+            useCaseTemplateSelect.value = "custom";
+            useCaseTemplateSelect.disabled = true;
+        }
+        runBtn.disabled = true;
+
         idleState.classList.add('hidden');
         loadingState.classList.add('hidden');
         renderReport(report);
         resultsState.classList.remove('hidden');
-        statusText.textContent = `Loaded report ${reportId}.`;
+        statusText.textContent = `Viewing historical report: ${report.policy_document || reportId}`;
     } catch (e) {
         alert(`Error opening report: ${e.message}`);
         statusText.textContent = "Ready";
     }
 };
+
+function resetAuditForm() {
+    isViewingPastReport = false;
+    pastReportBanner?.classList.add('hidden');
+
+    // Unlock Policy PDF Ingestion
+    targetDropBox.classList.remove('locked');
+    targetDropPrompt?.classList.remove('hidden');
+    targetDropSubtext?.classList.remove('hidden');
+    targetFile = null;
+    targetFileInput.value = "";
+    targetFileBadge.classList.add('hidden');
+    btnRemoveTarget.classList.remove('hidden');
+    targetFileViewBtn?.classList.add('hidden');
+
+    parentDropBox.classList.remove('locked');
+    parentDropPrompt?.classList.remove('hidden');
+    if (parentDropSubtext) {
+        parentDropSubtext.textContent = 'Superior parent Act for statutory defenses';
+        parentDropSubtext.classList.remove('hidden');
+    }
+    parentFile = null;
+    parentFileInput.value = "";
+    parentFileBadge.classList.add('hidden');
+    btnRemoveParent.classList.remove('hidden');
+    parentFileViewBtn?.classList.add('hidden');
+
+    // Unlock and reset Audit Configuration
+    if (jurisdictionLevelInput) {
+        jurisdictionLevelInput.value = "";
+        jurisdictionLevelInput.disabled = false;
+    }
+    if (jurisdictionInput) {
+        jurisdictionInput.value = "";
+        jurisdictionInput.disabled = false;
+    }
+    if (targetEntityInput) {
+        targetEntityInput.value = "";
+        targetEntityInput.disabled = false;
+    }
+    if (customInstructionsInput) {
+        customInstructionsInput.value = "";
+        customInstructionsInput.disabled = false;
+    }
+    if (enableWebSearchInput) {
+        enableWebSearchInput.checked = false;
+        enableWebSearchInput.disabled = false;
+    }
+    if (useCaseTemplateSelect) {
+        useCaseTemplateSelect.value = "custom";
+        useCaseTemplateSelect.disabled = false;
+    }
+
+    // Reset results state to idle
+    resultsState.classList.add('hidden');
+    loadingState.classList.add('hidden');
+    idleState.classList.remove('hidden');
+
+    updateQuotaDisplay();
+    statusText.textContent = "Ready for new audit";
+}
+
+window.resetAuditForm = resetAuditForm;
 
 // ==========================================================================
 // 7. Administrator Console Tab
@@ -851,36 +1037,75 @@ window.adminRevokePasscode = async (code) => {
 document.addEventListener('DOMContentLoaded', () => {
     checkSavedSession();
 
-    // Use Case Template Logic
-    const templateSelect = document.getElementById('use_case_template');
-    const targetEntityInput = document.getElementById('target_entity');
-    const customInstructionsInput = document.getElementById('custom_instructions');
-    const templateInfo = document.getElementById('template-info');
+    // Exit Past Report / Start New Audit Button
+    btnExitPastReport?.addEventListener('click', resetAuditForm);
 
-    if (templateSelect) {
-        templateSelect.addEventListener('change', (e) => {
+    // Use Case Template Logic
+    if (useCaseTemplateSelect) {
+        useCaseTemplateSelect.addEventListener('change', (e) => {
+            if (isViewingPastReport) return;
             const val = e.target.value;
             if (val === 'custom') {
-                targetEntityInput.value = '';
-                customInstructionsInput.value = '';
-                templateInfo.textContent = 'Configure the fields manually, or select a template to auto-fill them.';
-                templateInfo.style.color = '#555';
+                if (targetEntityInput) targetEntityInput.value = '';
+                if (customInstructionsInput) customInstructionsInput.value = '';
+                if (templateInfo) {
+                    templateInfo.textContent = 'Configure the fields manually, or select a template to auto-fill them.';
+                    templateInfo.style.color = '#555';
+                }
             } else if (val === 'public_policy') {
-                targetEntityInput.value = 'Adversarial Corporate Entity';
-                customInstructionsInput.value = 'Focus on definitional gaps, negative exemption criteria, and procedural loopholes.';
-                templateInfo.textContent = 'Template: Finding loopholes in government bylaws. (Auto-filled fields below)';
-                templateInfo.style.color = '#0056b3';
+                if (targetEntityInput) targetEntityInput.value = 'Adversarial Corporate Entity';
+                if (customInstructionsInput) customInstructionsInput.value = 'Focus on definitional gaps, negative exemption criteria, and procedural loopholes.';
+                if (templateInfo) {
+                    templateInfo.textContent = 'Template: Finding loopholes in government bylaws. (Auto-filled fields below)';
+                    templateInfo.style.color = '#0056b3';
+                }
             } else if (val === 'private_compliance') {
-                targetEntityInput.value = 'Disgruntled Resident or Competitor';
-                customInstructionsInput.value = 'Focus on Jurisdictional Arbitrage. Find clauses in the target policy that contradict or overstep the parent statutory law, allowing a resident to legally challenge or bypass the private policy.';
-                templateInfo.textContent = 'Template: Testing private policies against statutory law to ensure compliance. (Auto-filled fields below)';
-                templateInfo.style.color = '#0056b3';
+                if (targetEntityInput) targetEntityInput.value = 'Disgruntled Resident or Competitor';
+                if (customInstructionsInput) customInstructionsInput.value = 'Focus on Jurisdictional Arbitrage. Find clauses in the target policy that contradict or overstep the parent statutory law, allowing a resident to legally challenge or bypass the private policy.';
+                if (templateInfo) {
+                    templateInfo.textContent = 'Template: Testing private policies against statutory law to ensure compliance. (Auto-filled fields below)';
+                    templateInfo.style.color = '#0056b3';
+                }
             } else if (val === 'penalty_evasion') {
-                targetEntityInput.value = 'Non-compliant Business Entity';
-                customInstructionsInput.value = 'Focus on penalty asymmetry and fee schedule gaps. Identify scenarios where paying the penalty is cheaper or more advantageous than standard compliance.';
-                templateInfo.textContent = 'Template: Identifying weak penalties that encourage rule-breaking. (Auto-filled fields below)';
-                templateInfo.style.color = '#0056b3';
+                if (targetEntityInput) targetEntityInput.value = 'Non-compliant Business Entity';
+                if (customInstructionsInput) customInstructionsInput.value = 'Focus on penalty asymmetry and fee schedule gaps. Identify scenarios where paying the penalty is cheaper or more advantageous than standard compliance.';
+                if (templateInfo) {
+                    templateInfo.textContent = 'Template: Identifying weak penalties that encourage rule-breaking. (Auto-filled fields below)';
+                    templateInfo.style.color = '#0056b3';
+                }
             }
         });
     }
+
+    // Demo Passcode 1-Click Instant Login
+    const loginWithDemo = async () => {
+        if (passwordInput) {
+            passwordInput.value = "DEMO!";
+        }
+        authError.classList.add('hidden');
+        try {
+            const formData = new FormData();
+            formData.append("password", "DEMO!");
+            const res = await fetch('/api/auth', { method: 'POST', body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                loginSuccess(data, false);
+            } else {
+                const err = await res.json();
+                authError.textContent = err.detail || "Demo access unavailable.";
+                authError.classList.remove('hidden');
+            }
+        } catch (err) {
+            authError.textContent = "Network error connecting to server.";
+            authError.classList.remove('hidden');
+        }
+    };
+    document.getElementById('btn-autofill-demo')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        loginWithDemo();
+    });
+    document.getElementById('demo-passcode-tag')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        loginWithDemo();
+    });
 });

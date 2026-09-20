@@ -46,9 +46,17 @@
                 <form id="auth-form">
                     <fieldset class="classic-groupbox">
                         <legend>Enter Access Passcode</legend>
+
+                        <!-- Demo Prompt Banner -->
+                        <div style="margin-bottom: 8px; background: #ffffd8; border: 1px solid #d4c07b; padding: 6px 8px; font-size: 11px; color: #222; display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                💡 <strong>Want a Demo?</strong> Enter <code id="demo-passcode-tag" style="font-weight: bold; background: #fff; padding: 2px 6px; border: 1px solid #999; font-size: 11.5px; color: #003399; cursor: pointer;" title="Click to auto-fill DEMO!">DEMO!</code> for pre compiled reports.
+                            </div>
+                            <button type="button" id="btn-autofill-demo" class="btn-classic" style="font-size: 10px; padding: 2px 6px;">Use DEMO!</button>
+                        </div>
+
                         <label for="password-input">User Passcode / Master Admin Key:</label>
-                        <input type="password" id="password-input" placeholder="e.g. DEMO-SAMPLE-2026 (or enter your assigned passcode)" required autofocus>
-                        <small style="color: #0a246a; display: block; margin-top: 3px;">💡 <em>Tip: Enter <strong>DEMO-SAMPLE-2026</strong> to explore with pre-loaded sample data.</em></small>
+                        <input type="password" id="password-input" placeholder='Enter "DEMO!" for pre compiled reports or your passcode' required autofocus>
                     </fieldset>
 
                     <div id="auth-error" class="error-banner hidden">Invalid passcode. Please check your credentials.</div>
@@ -170,9 +178,20 @@
                 <div class="two-col-grid">
                     <!-- Left Column: Inputs -->
                     <div class="col-left">
+                        <!-- Past Report Inspection Banner (shown when viewing a past report) -->
+                        <div id="past-report-banner" class="past-report-banner hidden">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <strong style="color: #0a246a;">📂 Viewing Historical Audit Report</strong>
+                                <button type="button" id="btn-exit-past-report" class="btn-classic" style="font-size: 10px; font-weight: bold; background: #ffffd0;">➕ Start New Audit</button>
+                            </div>
+                            <div id="past-report-banner-details" style="font-size: 10px; color: #333;">
+                                Document ingestion and audit configuration are locked to the parameters used in this historical report.
+                            </div>
+                        </div>
+
                         <form id="upload-form">
                             <!-- Dual PDF Ingestion Zones -->
-                            <fieldset class="classic-groupbox">
+                            <fieldset class="classic-groupbox" id="scoping-groupbox">
                                 <legend>Policy PDF Ingestion (Dual Scoping)</legend>
                                 
                                 <div class="dual-ingest-grid">
@@ -180,11 +199,14 @@
                                     <div class="ingest-drop-box" id="target-drop-box">
                                         <input type="file" id="target-file-input" accept="application/pdf">
                                         <span class="ingest-badge badge-target">🎯 TARGET POLICY (Required)</span>
-                                        <p style="font-weight: bold; font-size: 11px; margin: 2px 0;">Click or Drop PDF</p>
-                                        <small style="color: #666; font-size: 10px;">Subordinate bylaw/rule to stress-test for loopholes</small>
+                                        <p id="target-drop-prompt" style="font-weight: bold; font-size: 11px; margin: 2px 0;">Click or Drop PDF</p>
+                                        <small id="target-drop-subtext" style="color: #666; font-size: 10px;">Subordinate bylaw/rule to stress-test for loopholes</small>
                                         <div id="target-file-badge" class="ingest-file-card hidden">
                                             <span id="target-file-name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">-</span>
-                                            <button type="button" class="btn-classic btn-danger" style="padding: 0 4px; font-size: 9px;" id="btn-remove-target">✕</button>
+                                            <div style="display: flex; gap: 2px; align-items: center;">
+                                                <a id="target-file-view-btn" class="btn-classic hidden" target="_blank" style="padding: 1px 4px; font-size: 9px; text-decoration: none;" title="View / Download PDF">📥 View</a>
+                                                <button type="button" class="btn-classic btn-danger" style="padding: 0 4px; font-size: 9px;" id="btn-remove-target">✕</button>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -192,11 +214,14 @@
                                     <div class="ingest-drop-box" id="parent-drop-box">
                                         <input type="file" id="parent-file-input" accept="application/pdf">
                                         <span class="ingest-badge badge-parent">🛡️ PARENT STATUTE (Optional)</span>
-                                        <p style="font-weight: bold; font-size: 11px; margin: 2px 0;">Click or Drop PDF</p>
-                                        <small style="color: #666; font-size: 10px;">Superior parent Act for statutory defenses</small>
+                                        <p id="parent-drop-prompt" style="font-weight: bold; font-size: 11px; margin: 2px 0;">Click or Drop PDF</p>
+                                        <small id="parent-drop-subtext" style="color: #666; font-size: 10px;">Superior parent Act for statutory defenses</small>
                                         <div id="parent-file-badge" class="ingest-file-card hidden">
                                             <span id="parent-file-name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;">-</span>
-                                            <button type="button" class="btn-classic btn-danger" style="padding: 0 4px; font-size: 9px;" id="btn-remove-parent">✕</button>
+                                            <div style="display: flex; gap: 2px; align-items: center;">
+                                                <a id="parent-file-view-btn" class="btn-classic hidden" target="_blank" style="padding: 1px 4px; font-size: 9px; text-decoration: none;" title="View / Download PDF">📥 View</a>
+                                                <button type="button" class="btn-classic btn-danger" style="padding: 0 4px; font-size: 9px;" id="btn-remove-parent">✕</button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -396,7 +421,13 @@
                  ================================================================ -->
             <div id="tab-past-reports" class="tab-content hidden">
                 <fieldset class="classic-groupbox">
-                    <legend>My Historical Audit Reports</legend>
+                    <legend id="past-reports-legend">My Historical Audit Reports</legend>
+                    <div id="demo-reports-banner" class="notice-box hidden" style="margin-bottom: 8px; background: #ffffd8; border: 1px solid #d4c07b;">
+                        <span class="notice-icon">📢</span>
+                        <div>
+                            <strong>Pre-Compiled Demonstration Reports:</strong> Below are pre-compiled adversarial audit reports. Click <strong>📂 Open</strong> on any report to inspect the complete Attacker vs. Defender debate, statutory citations, and Judge verdicts.
+                        </div>
+                    </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                         <span id="past-reports-count">Loading your generated reports...</span>
                         <button id="btn-refresh-user-reports" class="btn-classic">🔄 Refresh List</button>

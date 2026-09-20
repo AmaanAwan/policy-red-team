@@ -412,6 +412,26 @@ select {
     font-size: 10px;
 }
 
+.ingest-drop-box.locked {
+    pointer-events: none;
+    cursor: default;
+    background: #f4f4f4 !important;
+    border-style: solid;
+    border-color: #a0a0a0;
+}
+
+.ingest-drop-box.locked input[type="file"] {
+    display: none;
+}
+
+.past-report-banner {
+    background: #eaf1fb;
+    border: 1px solid #1a73e8;
+    padding: 6px 8px;
+    font-size: 11px;
+    margin-bottom: 8px;
+}
+
 /* ==========================================================================
    Guidelines & Instructions Modal
    ========================================================================== */

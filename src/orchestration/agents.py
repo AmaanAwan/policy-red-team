@@ -485,6 +485,8 @@ LATEST EXPLOIT ARGUMENT (just proposed):
 TASK: Determine if the LATEST EXPLOIT ARGUMENT is substantively the same as
 any previous argument in the debate history above.
 
+SPECIAL CASE: If the PREVIOUS EXPLOIT ARGUMENTS section says "No previous debate turns.", you MUST output CONTINUE.
+
 "Substantively the same" means the SAME statutory section is being exploited
 in the SAME way, even if the wording, framing, or examples differ.
 
@@ -492,7 +494,7 @@ in the SAME way, even if the wording, framing, or examples differ.
 the SAME section via a completely different legal mechanism.
 
 Output EXACTLY ONE WORD on a single line — nothing else:
-  CONTINUE  (if the latest argument is genuinely novel)
+  CONTINUE  (if the latest argument is genuinely novel, or if this is the first turn)
   STOP      (if the latest argument is essentially a rephrasing of a previous one)
 
 Do not output any explanation, punctuation, or additional text.
@@ -551,14 +553,8 @@ Output ONLY valid JSON. No preamble, no markdown fences. Raw JSON only:
 {{
   "summary": "<One clean paragraph ≤ 250 tokens describing the final loophole claim clearly>",
   "exploit_vector": "<Definitional Gap | Exemption Abuse | Penalty Asymmetry | Jurisdictional Arbitrage | Procedural Loophole>",
-  "primary_citations": [
-    {{
-      "section_id": "<Exact section reference, e.g., Rule 7(3)(b)>",
-      "source_document": "<PDF filename from debate>",
-      "page_number": null,
-      "quoted_text": "<Verbatim quote ≤ 200 chars from the debate transcript>",
-      "retrieval_score": 0.0
-    }}
+  "primary_citation_ids": [
+    "<Exact section reference from debate, e.g., Rule 7(3)(b)>"
   ],
   "is_novel": true
 }}
@@ -568,7 +564,7 @@ If EVERY turn in the debate transcript has verdict "exploit_refuted", then:
 - Set "summary" to: "No viable regulatory loophole survived the adversarial debate. All proposed exploits were successfully blocked by existing statutory provisions."
 - Set "exploit_vector" to the vector of the strongest attempted exploit
 - Set "is_novel" to false
-- Set "primary_citations" to the Defender's blocking citations
+- Set "primary_citation_ids" to the Defender's blocking section IDs
 This is a VALID outcome — it means the policy is well-drafted against this attack vector.
 
 RULES:
@@ -622,7 +618,7 @@ Output ONLY valid JSON. No preamble, no markdown:
 {{
   "stakeholder_type": "citizen",
   "harm_score": <float 0.0–1.0, where 1.0 = catastrophic harm to citizens>,
-  "benefit_score": <float 0.0–1.0, where 1.0 = massive benefit to {state.target_entity} at citizens' expense>,
+  "benefit_score": <1-10 integer, where 1 means severe harm/cost to citizens, 5 means neutral, and 10 means massive benefit/savings to {state.target_entity} at citizens' expense>,
   "affected_population": "<2–3 sentences: Who specifically is affected and how?>",
   "priority_concerns": [
     "<Top concern from a citizen's perspective>",
@@ -642,11 +638,11 @@ environmental effects on local communities, and fairness in law enforcement.
 0.7–0.8 (Severe):      City-wide impact; significant safety, housing, or cost-of-living harm
 0.9–1.0 (Catastrophic): Systemic exploitation affecting entire population; irreversible damage
 
-=== BENEFIT SCORE CALIBRATION ===
-0.0–0.2: Minor procedural advantage for the target entity
-0.3–0.5: Meaningful cost savings or compliance avoidance
-0.6–0.8: Large competitive advantage or systematic penalty evasion
-0.9–1.0: Complete regulatory capture; entity operates above the law
+=== BENEFIT SCORE CALIBRATION (1-10 INTEGER) ===
+1-3 (Negative): The loophole actually harms the target entity or costs them more
+4-6 (Neutral): No significant benefit; minor procedural workaround
+7-8 (High): Meaningful cost savings or compliance avoidance at citizens' expense
+9-10 (Extreme): Massive unfair advantage, total regulatory capture, entity operates above the law
 """.strip()
 
     return LlmAgent(
@@ -798,40 +794,10 @@ LOW      → Exploit is theoretical; multiple effective counter-clauses exist
 
 Output ONLY valid JSON conforming EXACTLY to this schema. No preamble, no markdown:
 {{
-  "session_id": "{state.session_id}",
-  "jurisdiction": "{state.jurisdiction}",
-  "jurisdiction_level": "{state.jurisdiction_level.value}",
-  "target_entity": "{state.target_entity}",
-  "policy_document": "{state.policy_document}",
-  "exploit_vector": "<Definitional Gap | Exemption Abuse | Penalty Asymmetry | Jurisdictional Arbitrage | Procedural Loophole>",
   "severity_classification": "<Critical | High | Medium | Low>",
-  "legal_confidence_score": <float 0.0–1.0>,
-  "canonical_exploit": <copy the canonical_exploit_json object here>,
-  "statutory_citations": [
-    {{
-      "section_id": "<§ or Rule reference>",
-      "source_document": "<PDF filename>",
-      "page_number": <integer or null>,
-      "quoted_text": "<Verbatim quote ≤ 200 chars>",
-      "retrieval_score": <float>
-    }}
-  ],
-  "debate_transcript": <copy the parsed debate_history as array of TurnSummary objects>,
-  "retrieval_provenance": [],
-  "citizen_score": <copy the citizen_score_json object here>,
-  "business_score": <copy the business_score_json object here>,
-  "affected_population_estimate": "<Combined 2–3 sentence assessment across both stakeholder groups>",
+  "legal_confidence_score": <float 0.0-1.0>,
+  "affected_population_estimate": "<Combined 2-3 sentence assessment across both stakeholder groups>",
   "remediation_recommendation": "<Specific statutory amendment or regulatory change that would close this loophole. Be precise: name the section to amend and the specific wording change needed.>",
-  "model_versions_used": {{
-    "attacker": "gemini-3.1-pro-preview",
-    "defender": "gemini-3.1-pro-preview",
-    "turn_summarizer": "gemini-3.6-flash",
-    "deduplication": "gemini-3.6-flash",
-    "exploit_canonicalizer": "gemini-3.6-flash",
-    "citizen_proxy": "gemini-3.6-flash",
-    "business_proxy": "gemini-3.6-flash",
-    "judge": "gemini-3.1-pro-preview"
-  }},
   "raw_judge_reasoning": "<Your full chain-of-thought here. Include: how you weighted turn verdicts, any confidence reductions applied, any evidence gaps noted, and why you chose this severity classification.>"
 }}
 """.strip()
@@ -840,5 +806,5 @@ Output ONLY valid JSON conforming EXACTLY to this schema. No preamble, no markdo
         name="JudgeAgent",
         model=_PRO,
         instruction=instruction,
-        output_key="final_report_json",
+        output_key="judge_verdict_json",
     )

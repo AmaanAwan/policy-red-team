@@ -202,16 +202,16 @@ Run the full pytest suite:
 pytest tests/ -v
 ```
 
-The test suite covers **32 unit and integration test cases** across all system layers (100% passing):
+The test suite covers **36 unit and integration test cases** across all system layers (100% passing):
 
 | Test File | Component | Test Cases Covered | Result |
 |---|---|---|---|
-| [`tests/test_api_auth.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_api_auth.py) | `main.py` (FastAPI Endpoints) | Master Admin auth, demo tester auth, invalid passcode gating, user reports scoping, admin authorization, passcode generation/deletion | ✅ 5/5 Passed |
-| [`tests/test_db.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_db.py) | `src/db.py` (Persistence & Quotas) | SQLite initialization, passcode verification, quota limits, pre-flight analysis gating, report persistence, admin quota adjustment | ✅ 8/8 Passed |
+| [`tests/test_api_auth.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_api_auth.py) | `main.py` (FastAPI Endpoints) | Master Admin auth, demo tester auth, invalid passcode gating, user reports scoping, admin authorization, passcode generation/deletion, demo delete protection (403), report PDF endpoint | ✅ 8/8 Passed |
+| [`tests/test_db.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_db.py) | `src/db.py` (Persistence & Quotas) | SQLite initialization, demo report seeding, passcode verification, quota limits, pre-flight analysis gating, report persistence, delete permissions, admin quota adjustment | ✅ 9/9 Passed |
 | [`tests/test_state.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_state.py) | `src/orchestration/state.py` | Document roles serialization, web search toggle, Pydantic immutability, `TurnSummary` compression, session state serialization | ✅ 8/8 Passed |
 | [`tests/test_tools.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_tools.py) | `src/orchestration/tools.py` | Regex AST metadata parser, FAISS score parsing, section ID extraction, page number extraction, empty response fallback | ✅ 9/9 Passed |
 | [`tests/test_embeddings.py`](file:///c:/Users/Laptop/OneDrive/Desktop/Amaan/Startups-Initiatives/policy-red-team/tests/test_embeddings.py) | `src/embeddings.py` | Vertex AI text-embedding-004 initialization and credential failure validation | ✅ 2/2 Passed |
-| **Total** | **Full System Coverage** | **Automated Unit & Integration Tests** | **✅ 32/32 Passed (100%)** |
+| **Total** | **Full System Coverage** | **Automated Unit & Integration Tests** | **✅ 36/36 Passed (100%)** |
 
 
 ---
