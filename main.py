@@ -23,6 +23,7 @@ from src.db import (
     get_user_reports,
     get_all_reports,
     get_report_by_id,
+    delete_report,
     create_passcode,
     list_all_passcodes,
     delete_passcode,
@@ -216,7 +217,7 @@ async def analyze_policies(
 
         try:
             from src.ingest_policy import ingest_document
-            ingest_document(
+            actual_faiss_dir = ingest_document(
                 pdf_paths=pdf_paths,
                 llama_api_key=DEV_LLAMA_KEY or None,
                 output_dir=faiss_dir,
@@ -233,6 +234,7 @@ async def analyze_policies(
                 custom_instructions=custom_instructions,
                 document_roles=doc_roles if doc_roles else None,
                 enable_web_search=web_search_enabled,
+                faiss_persist_dir=actual_faiss_dir,
                 output_path=report_path,
             )
             
@@ -275,6 +277,19 @@ async def get_report_details(report_id: str, passcode: str):
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     return report
+
+
+@app.delete("/api/reports/{report_id}")
+async def delete_report_endpoint(report_id: str, passcode: str):
+    """Delete a report by ID. Users can only delete their own; admins can delete any.
+    Quota (reports_used) is NOT restored — deletion does not refund generation capacity."""
+    info = verify_passcode(passcode)
+    if not info:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
+    success = delete_report(report_id, passcode=passcode, is_admin=info["is_admin"])
+    if not success:
+        raise HTTPException(status_code=404, detail="Report not found or not authorized to delete")
+    return {"status": "deleted", "report_id": report_id}
 
 # ---------------------------------------------------------------------------
 # Administrator Endpoints

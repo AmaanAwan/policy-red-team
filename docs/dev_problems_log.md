@@ -212,3 +212,13 @@ This document presents a deep-tech architectural retrospective of the engineerin
 | Cross-Doc Misattribution | Undifferentiated multi-document corpus | `DocumentRole` typed context routing | Multi-Document Semantic Scoping |
 | Closed-World RAG Gap | Missing parent statutes outside vector store | Asymmetric Google Search + Provenance Penalty | Open-World Grounding Augmentation |
 | Ephemeral Serverless Loss | Stateless Cloud Run instance recycling | Hybrid SQLite-GCS Mirroring & Quota Gatekeeper | Stateless-to-Stateful Serverless Bridging |
+| Tool Multiplexing Failure | Server/Client-side tool routing rejection | Set `include_server_side_tool_invocations=True` | API Capabilities & Payload Config |
+
+---
+
+## 20. Tool Multiplexing: Vertex AI Built-In vs Custom Tools
+
+* **Problem:** Execution failure `400 INVALID_ARGUMENT: Please enable tool_config.include_server_side_tool_invocations` when combining MCP tools with the Google Search tool.
+* **Root Cause Analysis:** Vertex AI's Gemini API strictly partitions server-side built-in tools (e.g., Google Search grounding) and client-side functional tools (e.g., MCP custom python tools). When both are provided to the model in a single request, the API requires explicit opt-in via the `include_server_side_tool_invocations` flag in the `tool_config` payload.
+* **Remediation & Architecture Fix:** Updated `src/orchestration/agents.py` to dynamically inject a custom `GenerateContentConfig` overriding the `tool_config` on the `DefenderAgent`'s `LlmAgent` instantiation whenever `enable_web_search` is active.
+* **Technical Pattern:** Tool Multiplexing, Server/Client-Side Invocation Routing, SDK Flag Configuration.

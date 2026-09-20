@@ -591,6 +591,7 @@ async function loadUserReports() {
                 <td>${r.exploit_vector}</td>
                 <td>
                     <button class="btn-classic" onclick="openReportById('${r.report_id}')">📂 Open</button>
+                    <button class="btn-classic btn-danger" onclick="deleteReport('${r.report_id}', false)" title="Delete report (quota not restored)">🗑️</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -699,6 +700,7 @@ async function loadAdminAllReports() {
                 <td>${r.exploit_vector}</td>
                 <td>
                     <button class="btn-classic" onclick="openReportById('${r.report_id}')">📂 View</button>
+                    <button class="btn-classic btn-danger" onclick="deleteReport('${r.report_id}', true)" title="Admin delete (quota not restored)">🗑️</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -710,6 +712,34 @@ async function loadAdminAllReports() {
 
 document.getElementById('btn-refresh-passcodes')?.addEventListener('click', loadAdminPasscodes);
 document.getElementById('btn-refresh-all-reports')?.addEventListener('click', loadAdminAllReports);
+
+// Delete a report (users: own only; admins: any). Quota is NOT restored.
+window.deleteReport = async (reportId, isAdminAction) => {
+    const confirmMsg = isAdminAction
+        ? `Admin delete report ${reportId}?\n\nNote: The user's quota count will NOT be restored.`
+        : `Delete this report?\n\nNote: Your quota count will NOT be restored — this only removes the record.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        const res = await fetch(
+            `/api/reports/${encodeURIComponent(reportId)}?passcode=${encodeURIComponent(currentUser.passcode)}`,
+            { method: 'DELETE' }
+        );
+        if (res.ok) {
+            // Refresh whichever table is visible
+            if (isAdminAction) {
+                loadAdminAllReports();
+            } else {
+                loadUserReports();
+            }
+        } else {
+            const err = await res.json();
+            alert(`Delete failed: ${err.detail || 'Unknown error'}`);
+        }
+    } catch (e) {
+        alert('Network error while deleting report.');
+    }
+};
 
 // Admin: Create Passcode Form
 document.getElementById('admin-create-passcode-form')?.addEventListener('submit', async (e) => {
@@ -820,4 +850,37 @@ window.adminRevokePasscode = async (code) => {
 // ==========================================================================
 document.addEventListener('DOMContentLoaded', () => {
     checkSavedSession();
+
+    // Use Case Template Logic
+    const templateSelect = document.getElementById('use_case_template');
+    const targetEntityInput = document.getElementById('target_entity');
+    const customInstructionsInput = document.getElementById('custom_instructions');
+    const templateInfo = document.getElementById('template-info');
+
+    if (templateSelect) {
+        templateSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val === 'custom') {
+                targetEntityInput.value = '';
+                customInstructionsInput.value = '';
+                templateInfo.textContent = 'Configure the fields manually, or select a template to auto-fill them.';
+                templateInfo.style.color = '#555';
+            } else if (val === 'public_policy') {
+                targetEntityInput.value = 'Adversarial Corporate Entity';
+                customInstructionsInput.value = 'Focus on definitional gaps, negative exemption criteria, and procedural loopholes.';
+                templateInfo.textContent = 'Template: Finding loopholes in government bylaws. (Auto-filled fields below)';
+                templateInfo.style.color = '#0056b3';
+            } else if (val === 'private_compliance') {
+                targetEntityInput.value = 'Disgruntled Resident or Competitor';
+                customInstructionsInput.value = 'Focus on Jurisdictional Arbitrage. Find clauses in the target policy that contradict or overstep the parent statutory law, allowing a resident to legally challenge or bypass the private policy.';
+                templateInfo.textContent = 'Template: Testing private policies against statutory law to ensure compliance. (Auto-filled fields below)';
+                templateInfo.style.color = '#0056b3';
+            } else if (val === 'penalty_evasion') {
+                targetEntityInput.value = 'Non-compliant Business Entity';
+                customInstructionsInput.value = 'Focus on penalty asymmetry and fee schedule gaps. Identify scenarios where paying the penalty is cheaper or more advantageous than standard compliance.';
+                templateInfo.textContent = 'Template: Identifying weak penalties that encourage rule-breaking. (Auto-filled fields below)';
+                templateInfo.style.color = '#0056b3';
+            }
+        });
+    }
 });

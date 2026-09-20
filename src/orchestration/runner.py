@@ -100,12 +100,16 @@ ADK_USER_ID = "audit_user"
 # MCP SERVER LIFECYCLE
 # ===================================================================
 
-def _start_mcp_server() -> subprocess.Popen:
+def _start_mcp_server(faiss_persist_dir: str | None = None) -> subprocess.Popen:
     """
     Launch the MCP server as a background subprocess in SSE mode.
 
     Uses sys.executable to ensure the same Python interpreter (and venv)
     is used for the subprocess.
+
+    Args:
+        faiss_persist_dir: Path to the FAISS index directory to load.
+                           If None, falls back to settings.FAISS_PERSIST_DIR.
 
     Returns:
         subprocess.Popen handle for the running server.
@@ -119,6 +123,8 @@ def _start_mcp_server() -> subprocess.Popen:
         "--host", MCP_HOST,
         "--port", str(MCP_PORT),
     ]
+    if faiss_persist_dir:
+        cmd += ["--persist-dir", faiss_persist_dir]
 
     logger.info("Starting MCP server: %s", " ".join(cmd))
 
@@ -280,6 +286,7 @@ def _extract_report(session_state: dict, state: PolicyAuditState) -> LoopholeRep
 async def run_audit(
     state: PolicyAuditState,
     *,
+    faiss_persist_dir: str | None = None,
     output_path: Path | None = None,
     verbose: bool = True,
 ) -> LoopholeReport:
@@ -327,7 +334,7 @@ async def run_audit(
 
     try:
         # --- Step 1: Start MCP server ---
-        mcp_proc = _start_mcp_server()
+        mcp_proc = _start_mcp_server(faiss_persist_dir=faiss_persist_dir)
         await _wait_for_mcp_server(mcp_proc)
 
         # --- Step 2: Set up ADK session service ---
@@ -489,6 +496,7 @@ async def run_audit_simple(
     custom_instructions: str = "",
     document_roles: list[dict] | None = None,
     enable_web_search: bool = False,
+    faiss_persist_dir: str | None = None,
     output_path: Path | None = None,
     verbose: bool = False,
 ) -> "LoopholeReport":
@@ -541,7 +549,7 @@ async def run_audit_simple(
         max_turns=3,
     )
 
-    return await run_audit(state, output_path=output_path, verbose=verbose)
+    return await run_audit(state, faiss_persist_dir=faiss_persist_dir, output_path=output_path, verbose=verbose)
 
 
 if __name__ == "__main__":

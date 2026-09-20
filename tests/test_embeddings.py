@@ -33,12 +33,15 @@ class TestEmbeddingFactory:
         with pytest.raises(ValueError, match="GOOGLE_CLOUD_PROJECT is required"):
             get_embedding_model()
 
+    @patch("google.auth.default")
     @patch("src.embeddings.VertexTextEmbedding")
-    def test_initializes_vertex_embedding_when_configured(self, mock_vertex_cls):
+    def test_initializes_vertex_embedding_when_configured(self, mock_vertex_cls, mock_auth_default):
         """When GOOGLE_CLOUD_PROJECT is set, factory initializes VertexTextEmbedding."""
         from llama_index.core.base.embeddings.base import BaseEmbedding
         mock_instance = MagicMock(spec=BaseEmbedding)
         mock_vertex_cls.return_value = mock_instance
+        mock_creds = MagicMock()
+        mock_auth_default.return_value = (mock_creds, "mock-project")
 
         object.__setattr__(settings, "GCP_PROJECT", "policy-red-team")
         object.__setattr__(settings, "GCP_LOCATION", "us-central1")
@@ -51,6 +54,7 @@ class TestEmbeddingFactory:
             model_name="text-embedding-004",
             project="policy-red-team",
             location="us-central1",
+            credentials=mock_creds,
         )
 
 

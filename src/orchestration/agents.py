@@ -353,8 +353,8 @@ Do NOT use US, UK, EU, or Indian legal frameworks. Stay strictly within {state.j
 
     tools = [get_mcp_toolset()]
     if state.enable_web_search:
-        from google.genai import types as genai_types
-        tools.append(genai_types.Tool(google_search=genai_types.GoogleSearch()))
+        from google.adk.tools import google_search
+        tools.append(google_search)
         instruction += """
 
 === WEB SEARCH AUTHORIZATION ===
@@ -368,13 +368,23 @@ Mark any web-sourced citation with [WEB SOURCE] to distinguish it from
 ingested document citations.
 """
 
-    return LlmAgent(
-        name=f"DefenderAgent_R{round_num}",
-        model=_PRO,
-        instruction=instruction,
-        tools=tools,
-        output_key="current_rebuttal_text",
-    )
+    kwargs = {
+        "name": f"DefenderAgent_R{round_num}",
+        "model": _PRO,
+        "instruction": instruction,
+        "tools": tools,
+        "output_key": "current_rebuttal_text",
+    }
+    
+    if state.enable_web_search:
+        from google.genai import types as genai_types
+        kwargs["generate_content_config"] = genai_types.GenerateContentConfig(
+            tool_config=genai_types.ToolConfig(
+                include_server_side_tool_invocations=True
+            )
+        )
+
+    return LlmAgent(**kwargs)
 
 
 # ===================================================================

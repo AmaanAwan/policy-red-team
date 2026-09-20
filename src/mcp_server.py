@@ -176,9 +176,12 @@ def load_index_and_retriever(
 mcp = FastMCP("PolicyRedTeam")
 
 # Global retriever — initialized lazily on first tool call.
-# We use a global so the FAISS index is loaded once and reused
-# across all incoming tool calls (no re-loading per request).
 _retriever: AutoMergingRetriever | None = None
+
+# Runtime-overridable FAISS persist dir (set via --persist-dir CLI arg).
+# Defaults to settings.FAISS_PERSIST_DIR but can be overridden by runner.py
+# when the index lives in a temp directory (Cloud Run / per-request flow).
+_faiss_persist_dir: str | None = None
 
 
 def _get_retriever() -> AutoMergingRetriever:
@@ -186,7 +189,8 @@ def _get_retriever() -> AutoMergingRetriever:
     global _retriever
     if _retriever is None:
         settings.validate()
-        _retriever = load_index_and_retriever(settings.FAISS_PERSIST_DIR)
+        persist_dir = _faiss_persist_dir or settings.FAISS_PERSIST_DIR
+        _retriever = load_index_and_retriever(persist_dir)
     return _retriever
 
 
@@ -285,6 +289,15 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
+        "--persist-dir",
+        default=None,
+        help=(
+            "Path to the FAISS index directory. "
+            "Overrides settings.FAISS_PERSIST_DIR. "
+            "Used by runner.py to pass the per-request temp directory."
+        ),
+    )
+    parser.add_argument(
         "--transport",
         choices=["stdio", "sse"],
         default="stdio",
@@ -306,6 +319,11 @@ if __name__ == "__main__":
         help="Port for SSE transport (ignored in stdio mode).",
     )
     args = parser.parse_args()
+
+    # Override the FAISS persist dir if provided via CLI
+    if args.persist_dir:
+        _faiss_persist_dir = args.persist_dir
+        logger.info("FAISS persist dir overridden to: %s", args.persist_dir)
 
     logger.info("=" * 60)
     logger.info("PHASE 2/3: Bridge Layer — MCP Server")

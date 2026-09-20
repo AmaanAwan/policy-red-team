@@ -8,9 +8,9 @@ As an International Relations / Public Policy student with knowledge of AI, your
 
 ## 🎯 What is Policy Red Team?
 
-**Policy Red Team** is an automated regulatory stress-testing platform powered by multi-agent AI (Google ADK 2.0). It ingests statutory legal texts (Acts, Ordinances, Statutory Rules, S.R.O.s, and municipal bylaws) and subjects them to an adversarial debate:
+**Policy Red Team** is an automated regulatory stress-testing platform powered by multi-agent AI (Google ADK 2.0). It ingests statutory legal texts (Acts, Ordinances, Statutory Rules, S.R.O.s, municipal bylaws) and private sector compliance frameworks (e.g., housing scheme policies) and subjects them to an adversarial debate:
 
-1. **The Attacker (Red Team):** Scours the target policy for definitional gaps, negative exemption criteria, and penalty asymmetries to construct an exploit.
+1. **The Attacker (Red Team):** Scours the target policy for definitional gaps, negative exemption criteria, penalty asymmetries, and jurisdictional overreach to construct an exploit.
 2. **The Defender (Blue Team):** Defends the regulation by citing qualifying clauses, enforcement procedures, or companion parent statutes (with optional live Google Search grounding).
 3. **The Judge Agent:** Evaluates the debate under Pakistan statutory law, assigns a quantitative severity classification (Critical, High, Medium, Low), measures legal confidence, and calculates harm/benefit impacts for citizens and businesses.
 
@@ -28,9 +28,21 @@ To achieve high-confidence results and avoid unproductive audits, follow these d
 
 ### ❌ Incompatible / Inefficient Documents (Do NOT Ingest)
 - **High-Level Policy Visions & Manifestos:** Aspirational whitepapers (e.g. *"National Digital Vision 2030"*) lacking binding clauses or legal penalties.
+- **Line-by-line Compliance Checklists:** The system is an adversarial engine, not a standard compliance checkbox tool.
 - **Court Judgements & Case Law Briefs:** The engine audits legislative and statutory text, not judicial jurisprudence or case precedents.
 - **Scanned Non-OCR PDFs:** Photocopied image PDFs without extractable text cannot be parsed by the vector indexing pipeline.
 - **Non-Pakistani Documents:** The reasoning models and legal rubrics are tailored for the statutory architecture of Pakistan.
+
+---
+
+## 🏢 How to Test Private Sector Policies (Compliance Check)
+
+If you are a private entity (like a housing society, developer, or corporation) wanting to test if your internal policy complies with Pakistani law (i.e., avoiding *ultra vires* rules):
+
+1. **Upload your Private Policy** to **Ingestion Box 1 — Target Policy**.
+2. **Upload the Governing Pakistani Law** (e.g., RDA Bylaws, Punjab Local Government Act) to **Ingestion Box 2 — Parent Statute**.
+3. **Set the Custom Directive:** *"Focus on Jurisdictional Arbitrage. Find clauses in the target policy that contradict or overstep the parent statutory law, allowing a resident to legally challenge, ignore, or bypass the private policy."*
+4. **Result:** The Attacker will try to use the Pakistani Law to strike down your private rules, helping you identify areas where your policy is legally non-compliant.
 
 ---
 

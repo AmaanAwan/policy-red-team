@@ -35,10 +35,10 @@
                     <legend>System Scope & Purpose</legend>
                     <div style="font-size: 10.5px; line-height: 1.35; color: #333;">
                         <p style="margin-bottom: 4px;">
-                            <strong>✅ What it IS:</strong> An adversarial AI stress-testing platform (ADK Attacker vs. Defender vs. Judge) that audits Pakistani statutory policies and bylaws to discover regulatory loopholes, compliance evasions, and enforcement gaps.
+                            <strong>✅ What it IS:</strong> An adversarial AI stress-testing platform (ADK Attacker vs. Defender vs. Judge) that audits Pakistani statutory policies and private sector compliance frameworks to discover regulatory loopholes, jurisdictional arbitrage, and enforcement gaps.
                         </p>
                         <p>
-                            <strong>❌ What it IS NOT:</strong> Not a general legal advice bot, not a case-law / judicial precedent search engine, and not an open-ended general chat assistant.
+                            <strong>❌ What it IS NOT:</strong> Not a line-by-line compliance checklist tool, not a legal advisory bot for individuals, not for non-statutory documents (like visions/manifestos), and not a case-law / judicial precedent search engine.
                         </p>
                     </div>
                 </fieldset>
@@ -206,6 +206,20 @@
                             <!-- Audit Parameters -->
                             <fieldset class="classic-groupbox">
                                 <legend>Audit Configuration & Focus</legend>
+
+                                <!-- Use Case Template Selection -->
+                                <div style="margin-bottom: 10px; background-color: #f9f9f9; padding: 6px; border: 1px solid #ddd;">
+                                    <label for="use_case_template" style="font-weight: bold; display: block; margin-bottom: 4px;">🎯 Use Case Template:</label>
+                                    <select id="use_case_template" style="width: 100%; padding: 4px; margin-bottom: 4px;">
+                                        <option value="custom">Custom Audit (Manual Setup)</option>
+                                        <option value="public_policy">1. Public Policy Loophole Discovery</option>
+                                        <option value="private_compliance">2. Private Sector Compliance Check (Jurisdictional Arbitrage)</option>
+                                        <option value="penalty_evasion">3. Penalty Asymmetry & Fee Evasion</option>
+                                    </select>
+                                    <div id="template-info" style="font-size: 10.5px; color: #555; font-style: italic; margin-top: 4px;">
+                                        Configure the fields manually, or select a template to auto-fill them.
+                                    </div>
+                                </div>
                                 
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
                                     <div>
@@ -216,18 +230,26 @@
                                             <option value="Provincial">Provincial</option>
                                             <option value="Municipal">Municipal</option>
                                         </select>
+                                        <small style="display:block; color:#777; font-size:9.5px; margin-top:2px;">E.g., Federal (FBR/SECP), Provincial (Punjab), Municipal (CDA/RDA)</small>
                                     </div>
                                     <div>
                                         <label for="jurisdiction">Jurisdiction:</label>
                                         <input type="text" id="jurisdiction" name="jurisdiction" placeholder="Auto-detect (e.g. Islamabad)">
+                                        <small style="display:block; color:#777; font-size:9.5px; margin-top:2px;">Specific city or province (e.g., Rawalpindi, Sindh)</small>
                                     </div>
                                 </div>
 
-                                <label for="target_entity">Target Entity Exploiting Policy:</label>
-                                <input type="text" id="target_entity" name="target_entity" placeholder="Auto-detect (e.g. Real Estate Developers)">
+                                <div style="margin-top: 6px;">
+                                    <label for="target_entity">Target Entity Exploiting Policy:</label>
+                                    <input type="text" id="target_entity" name="target_entity" placeholder="Auto-detect (e.g. Real Estate Developers)">
+                                    <small style="display:block; color:#777; font-size:9.5px; margin-top:2px;">Who is trying to bypass the rules? (e.g., "Disgruntled Resident", "Adversarial Corporate Entity")</small>
+                                </div>
 
-                                <label for="custom_instructions">Custom Exploitation Directive (Optional):</label>
-                                <textarea id="custom_instructions" name="custom_instructions" rows="2" placeholder="e.g. Focus on penalty evasion, jurisdictional arbitrage, or height exemptions..."></textarea>
+                                <div style="margin-top: 6px;">
+                                    <label for="custom_instructions">Custom Exploitation Directive (Optional):</label>
+                                    <textarea id="custom_instructions" name="custom_instructions" rows="2" placeholder="e.g. Focus on penalty evasion, jurisdictional arbitrage, or height exemptions..."></textarea>
+                                    <small style="display:block; color:#777; font-size:9.5px; margin-top:2px;">Specific instructions for the Attacker (e.g., "Find contradictions with the parent Act")</small>
+                                </div>
 
                                 <div style="margin-top: 6px;">
                                     <label style="display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; font-size: 10.5px;">

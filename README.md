@@ -5,7 +5,7 @@
 [![Framework: Google ADK](https://img.shields.io/badge/Framework-Google%20ADK-green.svg)](https://github.com/google/adk)
 [![Retriever: LlamaIndex](https://img.shields.io/badge/Retriever-LlamaIndex-orange.svg)](https://www.llamaindex.ai/)
 
-**Adversarial Policy Loophole Finder** — A thesis-grade, multi-agent AI system that stress-tests public policies, municipal bylaws, and statutory instruments through an adversarial, stakeholder-aware debate loop.
+**Adversarial Policy Loophole Finder** — A thesis-grade, multi-agent AI system that stress-tests public policies, municipal bylaws, statutory instruments, and private sector compliance frameworks through an adversarial, stakeholder-aware debate loop.
 
 ---
 
@@ -79,6 +79,21 @@
 3. **Context Window Decay Mitigation**: Compresses raw MCP search results (~12,000 tokens/turn) into structured ~150–200 token `TurnSummary` Pydantic models (**99.2% token reduction**).
 4. **Concurrent Tool Transport**: FastMCP exposed over Server-Sent Events (SSE) on HTTP (`http://127.0.0.1:8090/sse`) to prevent IPC deadlocks during parallel agent execution.
 5. **Grounded Statutory Provenance**: Regex AST metadata parser extracts section identifiers (e.g., `§ 4(a)(ii)`), page numbers, and float-precision FAISS scores into typed `StatutoryCitation` objects.
+
+---
+
+## Use Cases & Scope
+
+Policy Red Team is designed for two primary scenarios:
+
+1. **Public Policy Loophole Discovery**: Stress-testing government bylaws, statutory rules, and municipal notifications to find definitional gaps, penalty asymmetries, and exemption abuse.
+2. **Private Sector Compliance Check (Jurisdictional Arbitrage)**: Testing private sector policies (e.g., a private housing society's bylaws) against governing statutory laws (e.g., RDA bylaws) to ensure they are *intra vires*. The system acts as a disgruntled resident or competitor, using "Jurisdictional Arbitrage" to find clauses in the private policy that illegally contradict parent statutory law.
+
+### 🚫 What this system is NOT designed for:
+- **It is NOT a traditional compliance checklist tool.** It does not go line-by-line to tick off a checklist. It is an *adversarial engine* that attacks the policy to find loopholes.
+- **It is NOT a general legal advisory bot.** It is strictly scoped to finding exploitable weaknesses in uploaded documents.
+- **It is NOT for case-law or judicial precedent synthesis.** The engine audits statutory texts, not court judgments.
+- **It is NOT for non-statutory documents.** High-level policy visions (e.g., "Vision 2030") without binding clauses or legal penalties cannot be effectively audited.
 
 ---
 

@@ -432,6 +432,58 @@ def get_report_by_id(report_id: str) -> dict[str, Any] | None:
     return None
 
 
+def delete_report(report_id: str, passcode: str, is_admin: bool = False) -> bool:
+    """
+    Deletes a report by report_id.
+
+    Users can only delete their own reports (passcode must match).
+    Admins can delete any report.
+    Quota (reports_used) is intentionally NOT decremented — deletion
+    does not restore generation capacity.
+
+    Returns True if the report was found and deleted, False otherwise.
+    """
+    with get_db_connection() as conn:
+        if is_admin:
+            row = conn.execute(
+                "SELECT report_id FROM reports WHERE report_id = ?", (report_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT report_id FROM reports WHERE report_id = ? AND passcode = ?",
+                (report_id, passcode),
+            ).fetchone()
+
+        if not row:
+            return False
+
+        conn.execute("DELETE FROM reports WHERE report_id = ?", (report_id,))
+        conn.commit()
+
+    # Remove local disk file if present
+    local_file = REPORTS_DIR / f"{report_id}.json"
+    if local_file.exists():
+        try:
+            local_file.unlink()
+        except Exception as exc:
+            logger.warning(f"Could not delete local report file {local_file}: {exc}")
+
+    # Remove from GCS if configured
+    bucket = _get_gcs_bucket()
+    if bucket:
+        try:
+            blob = bucket.blob(f"reports/{report_id}.json")
+            if blob.exists():
+                blob.delete()
+            _sync_reports_to_gcs()
+        except Exception as exc:
+            logger.warning(f"Failed to delete report {report_id} from GCS: {exc}")
+
+    logger.info(f"Report {report_id} deleted by {'admin' if is_admin else passcode}.")
+    return True
+
+
+
 def create_passcode(label: str, report_limit: int = 5, custom_passcode: str = "") -> dict[str, Any]:
     """Admin: Creates a new user passcode with specified report limit."""
     code = custom_passcode.strip() if custom_passcode else f"TEST-{uuid.uuid4().hex[:6].upper()}"

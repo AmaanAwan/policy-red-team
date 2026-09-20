@@ -5,6 +5,9 @@
 #
 # CONSTRAINT: No local inference. No PyTorch. No large model
 # downloads. All heavy compute is offloaded to cloud APIs.
+# IMPORTANT: Versions are pinned to match the tested environment.
+# Unpinned versions cause Cloud Run to resolve incompatible
+# package combinations (e.g. fastmcp 4.x breaks with mcp 1.29+).
 # ============================================================
 
 # --- Core LlamaIndex Framework ---
@@ -12,37 +15,32 @@ llama-index-core
 
 # --- Document Parsing (Cloud API) ---
 # Replaces the deprecated `llama-parse` package (EOL May 2026).
-# LlamaParse extracts structured markdown from PDFs via API —
-# no local OCR or ML models required.
 llama-cloud>=2.8
 
 # --- Vector Store ---
-# FAISS (CPU-only) for in-memory similarity search.
-# Lightweight — no GPU dependencies.
 llama-index-vector-stores-faiss
 faiss-cpu
 
 # --- Embeddings (Cloud API) ---
 # Google Vertex AI text-embedding-004 (768-dim).
-# All embedding computation runs on Google Cloud.
 llama-index-embeddings-vertex
 
+# --- Google Auth (explicit — needed for ADC credentials passthrough) ---
+google-auth>=2.0.0
+
 # --- MCP Server ---
-# Model Context Protocol server framework.
-# Exposes retrieval as a standardized tool for ADK agents.
-fastmcp
+# PINNED: fastmcp 4.x is incompatible with mcp 1.29+ (missing mcp.shared.session).
+# fastmcp 3.4.5 + mcp 1.29.0 is the tested working combination.
+fastmcp==3.4.5
+mcp==1.29.0
 
 # --- Phase 3: ADK Multi-Agent Orchestration ---
-# Google Agent Development Kit (ADK) with Vertex AI backend.
-# Provides LlmAgent, SequentialAgent, ParallelAgent, Runner, etc.
-google-adk
+google-adk==2.6.2
 
 # Google Cloud AI Platform SDK.
-# Required for Vertex AI model access (gemini-2.5-flash / gemini-2.5-pro).
 google-cloud-aiplatform
 
-# Async HTTP client — used by runner.py to health-check the MCP
-# SSE server before starting the ADK workflow.
+# Async HTTP client — used by runner.py to health-check MCP SSE server.
 httpx
 
 # --- Configuration ---
@@ -56,6 +54,7 @@ google-cloud-storage
 fastapi
 uvicorn
 python-multipart
+
 # --- Testing ---
 pytest
 

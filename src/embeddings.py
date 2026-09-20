@@ -43,10 +43,17 @@ def get_embedding_model() -> Any:
         settings.GCP_LOCATION,
     )
 
+    import google.auth
+
+    credentials, _ = google.auth.default(
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+
     embed_model = VertexTextEmbedding(
         model_name=settings.EMBEDDING_MODEL_NAME,
         project=settings.GCP_PROJECT,
         location=settings.GCP_LOCATION,
+        credentials=credentials,
     )
     LlamaSettings.embed_model = embed_model
     return embed_model
