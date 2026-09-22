@@ -136,3 +136,115 @@ def test_report_pdf_endpoint(client):
     assert res.status_code == 200
     assert res.headers["content-type"] == "application/pdf"
 
+
+def test_user_without_llama_key_blocked_from_analyze(client):
+    # Create a fresh user without llama_key
+    from src.db import create_passcode
+    create_passcode("No Key Tester", report_limit=5, custom_passcode="NO-KEY-TESTER")
+
+    pdf_content = b"%PDF-1.4 sample pdf content for testing"
+    files = [("files", ("test_doc.pdf", pdf_content, "application/pdf"))]
+    res = client.post("/api/analyze", data={"password": "NO-KEY-TESTER"}, files=files)
+    assert res.status_code == 403
+    assert "LlamaCloud API Key required" in res.json()["detail"]
+
+
+def test_set_user_llama_key_validation(client):
+    # Empty key returns 400
+    res = client.post("/api/user/llama_key", data={"passcode": "TEST-LAW-2026", "llama_key": "   "})
+    assert res.status_code == 400
+
+    # Key without llx- or too short returns 400
+    res = client.post("/api/user/llama_key", data={"passcode": "TEST-LAW-2026", "llama_key": "short"})
+    assert res.status_code == 400
+
+    # Valid key saves and returns masked key
+    valid_key = "llx-testusersecretkey9876543210"
+    res = client.post("/api/user/llama_key", data={"passcode": "TEST-LAW-2026", "llama_key": valid_key})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["saved"] is True
+    assert data["has_llama_key"] is True
+    assert data["llama_key_masked"] == "llx-tes...3210"
+
+    # Verify /api/user/info now returns has_llama_key: True and masked key
+    info_res = client.get("/api/user/info?passcode=TEST-LAW-2026")
+    assert info_res.status_code == 200
+    info_data = info_res.json()
+    assert info_data["has_llama_key"] is True
+    assert info_data["llama_key_masked"] == "llx-tes...3210"
+
+
+def test_user_entered_llama_key_used_in_ingestion(client, monkeypatch):
+    from src.orchestration.state import (
+        LoopholeReport,
+        SeverityClassification,
+        ExploitVector,
+        JurisdictionLevel,
+        CanonicalExploit,
+        StakeholderScore,
+    )
+    from src.db import create_passcode
+
+    # Create a dedicated passcode to guarantee available quota
+    create_passcode("Ingest Key Tester", report_limit=10, custom_passcode="INGEST-KEY-TESTER")
+    user_key = "llx-user-custom-key-11223344"
+    client.post("/api/user/llama_key", data={"passcode": "INGEST-KEY-TESTER", "llama_key": user_key})
+
+    captured_key = None
+
+    def mock_ingest(pdf_paths, llama_api_key=None, output_dir=None):
+        nonlocal captured_key
+        captured_key = llama_api_key
+        return str(output_dir)
+
+    async def mock_run_audit(*args, **kwargs):
+        return LoopholeReport(
+            session_id="test-session-key",
+            jurisdiction="Islamabad",
+            jurisdiction_level=JurisdictionLevel.FEDERAL,
+            target_entity="Developers",
+            policy_document="test_doc.pdf",
+            exploit_vector=ExploitVector.DEFINITIONAL_GAP,
+            severity_classification=SeverityClassification.LOW,
+            legal_confidence_score=0.9,
+            canonical_exploit=CanonicalExploit(
+                summary="Exploit summary",
+                exploit_vector=ExploitVector.DEFINITIONAL_GAP,
+                primary_citation_ids=("Section 1",),
+                is_novel=True,
+            ),
+            statutory_citations=(),
+            debate_transcript=(),
+            retrieval_provenance=(),
+            citizen_score=StakeholderScore(
+                stakeholder_type="citizen",
+                harm_score=0.1,
+                benefit_score=1,
+                affected_population="Citizens",
+                priority_concerns=("Concern 1",),
+                confidence=0.9,
+            ),
+            business_score=StakeholderScore(
+                stakeholder_type="business",
+                harm_score=0.1,
+                benefit_score=0.1,
+                affected_population="Businesses",
+                priority_concerns=("Concern 2",),
+                confidence=0.9,
+            ),
+            affected_population_estimate="None",
+            remediation_recommendation="None",
+            raw_judge_reasoning="Reasoning",
+            model_versions_used={"attacker": "test", "defender": "test"},
+        )
+
+    monkeypatch.setattr("src.ingest_policy.ingest_document", mock_ingest)
+    monkeypatch.setattr("src.orchestration.runner.run_audit_simple", mock_run_audit)
+
+    pdf_content = b"%PDF-1.4 sample pdf"
+    files = [("files", ("test_doc.pdf", pdf_content, "application/pdf"))]
+    res = client.post("/api/analyze", data={"password": "INGEST-KEY-TESTER"}, files=files)
+    assert res.status_code == 200
+    assert captured_key == user_key
+

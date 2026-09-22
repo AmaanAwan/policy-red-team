@@ -140,14 +140,19 @@ def _save_feedback_to_gcs(feedback: dict) -> bool:
 async def authenticate(password: str = Form(...)):
     info = verify_passcode(password)
     if info:
+        raw_key = (info.get("llama_key") or "").strip()
+        is_admin = bool(info.get("is_admin"))
+        has_key = bool(raw_key) or (is_admin and bool(DEV_LLAMA_KEY))
+        masked = (f"{raw_key[:7]}...{raw_key[-4:]}" if len(raw_key) >= 11 else "llx-***") if raw_key else ("Server Default Key (Admin)" if is_admin and DEV_LLAMA_KEY else "")
         return {
             "status": "ok",
             "passcode": info["passcode"],
-            "is_admin": info["is_admin"],
+            "is_admin": is_admin,
             "label": info["label"],
             "reports_used": info["reports_used"],
             "report_limit": info["report_limit"],
-            "has_llama_key": bool(info.get("llama_key")),
+            "has_llama_key": has_key,
+            "llama_key_masked": masked,
         }
     raise HTTPException(status_code=401, detail="Invalid passcode. Please check your credentials.")
 
@@ -166,6 +171,17 @@ async def analyze_policies(
     allowed, reason, user_info = can_generate_report(password)
     if not allowed or not user_info:
         raise HTTPException(status_code=403, detail=reason)
+
+    # Enforce LlamaCloud API Key requirement
+    user_llama_key = (user_info.get("llama_key") or "").strip()
+    is_admin = bool(user_info.get("is_admin"))
+    effective_llama_key = user_llama_key or (DEV_LLAMA_KEY if is_admin else "")
+
+    if not effective_llama_key:
+        raise HTTPException(
+            status_code=403,
+            detail="LlamaCloud API Key required. Please configure your personal API key in Settings before running policy audits.",
+        )
 
     if not files or len(files) == 0:
         raise HTTPException(status_code=400, detail="No files uploaded.")
@@ -221,7 +237,7 @@ async def analyze_policies(
             from src.ingest_policy import ingest_document
             actual_faiss_dir = ingest_document(
                 pdf_paths=pdf_paths,
-                llama_api_key=user_info.get("llama_key") or DEV_LLAMA_KEY or None,
+                llama_api_key=effective_llama_key,
                 output_dir=faiss_dir,
             )
 
@@ -295,7 +311,19 @@ async def get_current_user_info(passcode: str):
     info = verify_passcode(passcode)
     if not info:
         raise HTTPException(status_code=401, detail="Invalid passcode")
-    return info
+    raw_key = (info.get("llama_key") or "").strip()
+    is_admin = bool(info.get("is_admin"))
+    has_key = bool(raw_key) or (is_admin and bool(DEV_LLAMA_KEY))
+    masked = (f"{raw_key[:7]}...{raw_key[-4:]}" if len(raw_key) >= 11 else "llx-***") if raw_key else ("Server Default Key (Admin)" if is_admin and DEV_LLAMA_KEY else "")
+    return {
+        "passcode": info["passcode"],
+        "label": info["label"],
+        "is_admin": is_admin,
+        "report_limit": info["report_limit"],
+        "reports_used": info["reports_used"],
+        "has_llama_key": has_key,
+        "llama_key_masked": masked,
+    }
 
 @app.get("/api/user/reports")
 async def list_user_reports(passcode: str):
@@ -309,8 +337,19 @@ async def set_user_llama_key(passcode: str = Form(...), llama_key: str = Form(..
     info = verify_passcode(passcode)
     if not info:
         raise HTTPException(status_code=401, detail="Invalid passcode")
-    success = update_user_llama_key(passcode, llama_key)
-    return {"status": "ok", "saved": success}
+    cleaned_key = llama_key.strip()
+    if not cleaned_key:
+        raise HTTPException(status_code=400, detail="API key cannot be empty")
+    if not cleaned_key.startswith("llx-") and len(cleaned_key) < 10:
+        raise HTTPException(status_code=400, detail="Invalid key format. LlamaCloud API keys usually start with 'llx-'")
+    success = update_user_llama_key(passcode, cleaned_key)
+    masked = f"{cleaned_key[:7]}...{cleaned_key[-4:]}" if len(cleaned_key) >= 11 else "llx-***"
+    return {
+        "status": "ok",
+        "saved": success,
+        "has_llama_key": True,
+        "llama_key_masked": masked,
+    }
 
 @app.get("/api/reports/{report_id}")
 async def get_report_details(report_id: str, passcode: str):

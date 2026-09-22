@@ -76,6 +76,40 @@ const templateInfo = document.getElementById('template-info');
 // 1. Authentication & Session Flow
 // ==========================================================================
 
+function handleSessionExpired(message = "Session expired. Please enter your passkey to log in again.") {
+    sessionStorage.removeItem('auth_passcode');
+    currentUser = null;
+    authError.textContent = message;
+    authError.classList.remove('hidden');
+    authOverlay.classList.remove('hidden');
+    appWindow.classList.add('hidden');
+    if (passwordInput) {
+        passwordInput.value = "";
+        passwordInput.focus();
+    }
+}
+
+// Proactive session watchdog: verifies session validity whenever user returns to window tab
+window.addEventListener('focus', async () => {
+    if (!currentUser || authOverlay.classList.contains('hidden') === false) return;
+    try {
+        const res = await fetch(`/api/user/info?passcode=${encodeURIComponent(currentUser.passcode)}`);
+        if (res.status === 401) {
+            handleSessionExpired("Your session expired while inactive. Please enter your passkey to log in again.");
+        } else if (res.ok) {
+            const info = await res.json();
+            currentUser.reports_used = info.reports_used;
+            currentUser.report_limit = info.report_limit;
+            currentUser.has_llama_key = info.has_llama_key;
+            currentUser.llama_key_masked = info.llama_key_masked;
+            updateQuotaDisplay();
+            applyLlamaLockState();
+        }
+    } catch (e) {
+        // Network hiccup, silent ignore
+    }
+});
+
 async function checkSavedSession() {
     const savedCode = sessionStorage.getItem('auth_passcode');
     if (savedCode) {
@@ -102,6 +136,7 @@ function loginSuccess(userInfo, showGuide = true) {
 
     // Update Status Bar
     statusUser.textContent = `User: ${userInfo.label}`;
+    applyLlamaLockState();
     updateQuotaDisplay();
 
     // Reveal Administrator Tab if user is admin
@@ -111,8 +146,6 @@ function loginSuccess(userInfo, showGuide = true) {
         tabBtnAdmin.classList.add('hidden');
     }
 
-    statusText.textContent = "Ready";
-
     // If Demo Passcode is used, navigate directly to Past Reports tab without prompt modal
     if (userInfo.passcode === "DEMO!") {
         statusText.textContent = "Viewing Pre-Compiled Demonstration Reports";
@@ -120,8 +153,8 @@ function loginSuccess(userInfo, showGuide = true) {
     } else {
         statusText.textContent = "Ready";
         if (showGuide) {
-            if (!userInfo.is_admin && !userInfo.has_llama_key) {
-                document.getElementById('llama-key-modal').classList.remove('hidden');
+            if (!userInfo.has_llama_key) {
+                openLlamaKeyModal();
             } else {
                 instructionsModal.classList.remove('hidden');
             }
@@ -131,6 +164,12 @@ function loginSuccess(userInfo, showGuide = true) {
 
 function updateQuotaDisplay() {
     if (!currentUser) return;
+
+    if (!currentUser.has_llama_key) {
+        runBtn.disabled = true;
+        return;
+    }
+
     if (currentUser.is_admin || currentUser.report_limit === -1) {
         statusQuota.textContent = "Quota: Unlimited (Admin)";
         quotaWarningBanner.classList.add('hidden');
@@ -204,16 +243,107 @@ document.getElementById('btn-window-close')?.addEventListener('click', () => {
     }
 });
 
+// ==========================================================================
+// 1.5. LlamaCloud Key Enforcement & Portal Lock Logic
+// ==========================================================================
+
+function applyLlamaLockState() {
+    if (!currentUser) return;
+
+    const hasKey = Boolean(currentUser.has_llama_key);
+    const lockBanner = document.getElementById('llama-lock-banner');
+    const statusLlama = document.getElementById('status-llama-key');
+    const formControls = uploadForm.querySelectorAll('input:not([type="file"]), select, textarea');
+
+    // Update status bar pane
+    if (statusLlama) {
+        if (hasKey) {
+            statusLlama.textContent = `🔑 LlamaCloud: ${currentUser.llama_key_masked || 'Active'}`;
+            statusLlama.style.color = '#005500';
+            statusLlama.title = "LlamaCloud API key is active. Click to view or update.";
+        } else {
+            statusLlama.textContent = `🔑 LlamaCloud: Locked (Key Required)`;
+            statusLlama.style.color = '#aa0000';
+            statusLlama.title = "Portal Locked: Click to configure your LlamaCloud API Key.";
+        }
+    }
+
+    if (!hasKey) {
+        // Portal is locked: show banner, disable drop zones and inputs
+        if (lockBanner) lockBanner.classList.remove('hidden');
+        targetDropBox.classList.add('locked-drop-zone');
+        parentDropBox.classList.add('locked-drop-zone');
+
+        formControls.forEach(el => {
+            el.disabled = true;
+        });
+        runBtn.disabled = true;
+    } else {
+        // Portal is unlocked
+        if (lockBanner) lockBanner.classList.add('hidden');
+        targetDropBox.classList.remove('locked-drop-zone');
+        parentDropBox.classList.remove('locked-drop-zone');
+
+        if (!isViewingPastReport) {
+            formControls.forEach(el => {
+                el.disabled = false;
+            });
+            if (targetFile) {
+                runBtn.disabled = false;
+            }
+        }
+    }
+}
+
+function openLlamaKeyModal() {
+    const modal = document.getElementById('llama-key-modal');
+    const statusTextEl = document.getElementById('llama-key-status-text');
+    const keyInput = document.getElementById('llama-key-input');
+    const errorEl = document.getElementById('llama-key-error');
+    const successEl = document.getElementById('llama-key-success');
+
+    if (errorEl) errorEl.classList.add('hidden');
+    if (successEl) successEl.classList.add('hidden');
+    if (keyInput) keyInput.value = "";
+
+    if (statusTextEl && currentUser) {
+        if (currentUser.has_llama_key) {
+            statusTextEl.textContent = currentUser.llama_key_masked ? `Active (${currentUser.llama_key_masked})` : 'Active';
+            statusTextEl.style.color = '#008800';
+        } else {
+            statusTextEl.textContent = 'Not Configured (Portal Locked)';
+            statusTextEl.style.color = '#bb0000';
+        }
+    }
+
+    modal.classList.remove('hidden');
+    if (keyInput) keyInput.focus();
+}
+
 // Llama Key Modal Handling
 document.getElementById('btn-close-llama-modal')?.addEventListener('click', () => {
     document.getElementById('llama-key-modal').classList.add('hidden');
-    instructionsModal.classList.remove('hidden');
+    applyLlamaLockState();
 });
+
+document.getElementById('btn-cancel-llama-modal')?.addEventListener('click', () => {
+    document.getElementById('llama-key-modal').classList.add('hidden');
+    applyLlamaLockState();
+});
+
+document.getElementById('btn-lock-open-settings')?.addEventListener('click', openLlamaKeyModal);
+document.getElementById('menu-settings')?.addEventListener('click', openLlamaKeyModal);
+document.getElementById('status-llama-key')?.addEventListener('click', openLlamaKeyModal);
 
 document.getElementById('llama-key-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const key = document.getElementById('llama-key-input').value.trim();
     if (!key || !currentUser) return;
+
+    const errorEl = document.getElementById('llama-key-error');
+    const successEl = document.getElementById('llama-key-success');
+    if (errorEl) errorEl.classList.add('hidden');
+    if (successEl) successEl.classList.add('hidden');
 
     try {
         const fd = new FormData();
@@ -222,15 +352,35 @@ document.getElementById('llama-key-form')?.addEventListener('submit', async (e) 
 
         const res = await fetch('/api/user/llama_key', { method: 'POST', body: fd });
         if (res.ok) {
+            const data = await res.json();
             currentUser.has_llama_key = true;
-            document.getElementById('llama-key-modal').classList.add('hidden');
-            instructionsModal.classList.remove('hidden');
+            currentUser.llama_key_masked = data.llama_key_masked;
+
+            if (successEl) {
+                successEl.textContent = "✔️ Key saved successfully! Portal unlocked.";
+                successEl.classList.remove('hidden');
+            }
+
+            applyLlamaLockState();
+            updateQuotaDisplay();
+
+            setTimeout(() => {
+                document.getElementById('llama-key-modal').classList.add('hidden');
+                if (successEl) successEl.classList.add('hidden');
+                instructionsModal.classList.remove('hidden');
+            }, 600);
         } else {
-            document.getElementById('llama-key-error').classList.remove('hidden');
+            const err = await res.json();
+            if (errorEl) {
+                errorEl.textContent = err.detail || "Failed to save key.";
+                errorEl.classList.remove('hidden');
+            }
         }
     } catch (err) {
-        document.getElementById('llama-key-error').textContent = "Network error saving key.";
-        document.getElementById('llama-key-error').classList.remove('hidden');
+        if (errorEl) {
+            errorEl.textContent = "Network error saving key.";
+            errorEl.classList.remove('hidden');
+        }
     }
 });
 
@@ -277,10 +427,14 @@ document.getElementById('menu-admin')?.addEventListener('click', () => {
 // Target Policy Setup
 targetDropBox.addEventListener('click', (e) => {
     if (isViewingPastReport) return;
+    if (!currentUser?.has_llama_key) {
+        openLlamaKeyModal();
+        return;
+    }
     if (e.target !== btnRemoveTarget) targetFileInput.click();
 });
 targetDropBox.addEventListener('dragover', (e) => { 
-    if (isViewingPastReport) return;
+    if (isViewingPastReport || !currentUser?.has_llama_key) return;
     e.preventDefault(); 
     targetDropBox.style.background = "#eef4ff"; 
 });
@@ -288,11 +442,19 @@ targetDropBox.addEventListener('dragleave', () => { targetDropBox.style.backgrou
 targetDropBox.addEventListener('drop', (e) => {
     e.preventDefault();
     if (isViewingPastReport) return;
+    if (!currentUser?.has_llama_key) {
+        openLlamaKeyModal();
+        return;
+    }
     targetDropBox.style.background = "#ffffff";
     if (e.dataTransfer.files.length > 0) assignTargetFile(e.dataTransfer.files[0]);
 });
 targetFileInput.addEventListener('change', (e) => {
     if (isViewingPastReport) return;
+    if (!currentUser?.has_llama_key) {
+        openLlamaKeyModal();
+        return;
+    }
     if (e.target.files.length > 0) assignTargetFile(e.target.files[0]);
 });
 
@@ -319,10 +481,14 @@ btnRemoveTarget.addEventListener('click', (e) => {
 // Parent Statute Setup
 parentDropBox.addEventListener('click', (e) => {
     if (isViewingPastReport) return;
+    if (!currentUser?.has_llama_key) {
+        openLlamaKeyModal();
+        return;
+    }
     if (e.target !== btnRemoveParent) parentFileInput.click();
 });
 parentDropBox.addEventListener('dragover', (e) => { 
-    if (isViewingPastReport) return;
+    if (isViewingPastReport || !currentUser?.has_llama_key) return;
     e.preventDefault(); 
     parentDropBox.style.background = "#f0fff0"; 
 });
@@ -330,11 +496,19 @@ parentDropBox.addEventListener('dragleave', () => { parentDropBox.style.backgrou
 parentDropBox.addEventListener('drop', (e) => {
     e.preventDefault();
     if (isViewingPastReport) return;
+    if (!currentUser?.has_llama_key) {
+        openLlamaKeyModal();
+        return;
+    }
     parentDropBox.style.background = "#ffffff";
     if (e.dataTransfer.files.length > 0) assignParentFile(e.dataTransfer.files[0]);
 });
 parentFileInput.addEventListener('change', (e) => {
     if (isViewingPastReport) return;
+    if (!currentUser?.has_llama_key) {
+        openLlamaKeyModal();
+        return;
+    }
     if (e.target.files.length > 0) assignParentFile(e.target.files[0]);
 });
 
@@ -361,6 +535,11 @@ btnRemoveParent.addEventListener('click', (e) => {
 
 uploadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!currentUser?.has_llama_key) {
+        alert("Portal Locked: You must configure your personal LlamaCloud API Key in Settings before running an audit.");
+        openLlamaKeyModal();
+        return;
+    }
     if (!targetFile || !currentUser) {
         alert("Please upload at least the Target Policy document.");
         return;
@@ -428,6 +607,10 @@ uploadForm.addEventListener('submit', async (e) => {
         clearTimeout(t2);
 
         if (!res.ok) {
+            if (res.status === 401) {
+                handleSessionExpired("Your session expired. Please enter your passkey to log in again.");
+                return;
+            }
             const err = await res.json();
             throw new Error(err.detail || "Analysis request failed.");
         }
@@ -442,6 +625,9 @@ uploadForm.addEventListener('submit', async (e) => {
             currentUser.reports_used += 1;
             updateQuotaDisplay();
         }
+
+        // Proactively refresh past reports in background
+        loadUserReports();
 
         setTimeout(() => {
             loadingState.classList.add('hidden');
@@ -632,6 +818,10 @@ async function loadUserReports() {
 
     try {
         const res = await fetch(`/api/user/reports?passcode=${encodeURIComponent(currentUser.passcode)}`);
+        if (res.status === 401) {
+            handleSessionExpired("Your session or passcode has expired. Please enter your passkey to log in again.");
+            return;
+        }
         if (!res.ok) throw new Error("Failed to load reports");
         const reports = await res.json();
 
@@ -680,6 +870,10 @@ window.openReportById = async (reportId) => {
     statusText.textContent = `Loading report ${reportId}...`;
     try {
         const res = await fetch(`/api/reports/${encodeURIComponent(reportId)}?passcode=${encodeURIComponent(currentUser.passcode)}`);
+        if (res.status === 401) {
+            handleSessionExpired("Your session or passcode has expired. Please enter your passkey to log in again.");
+            return;
+        }
         if (!res.ok) throw new Error("Report not found");
         const report = await res.json();
         
@@ -836,6 +1030,7 @@ function resetAuditForm() {
     loadingState.classList.add('hidden');
     idleState.classList.remove('hidden');
 
+    applyLlamaLockState();
     updateQuotaDisplay();
     statusText.textContent = "Ready for new audit";
 }
@@ -944,6 +1139,10 @@ window.deleteReport = async (reportId, isAdminAction) => {
             `/api/reports/${encodeURIComponent(reportId)}?passcode=${encodeURIComponent(currentUser.passcode)}`,
             { method: 'DELETE' }
         );
+        if (res.status === 401) {
+            handleSessionExpired("Your session or passcode has expired. Please enter your passkey to log in again.");
+            return;
+        }
         if (res.ok) {
             // Refresh whichever table is visible
             if (isAdminAction) {

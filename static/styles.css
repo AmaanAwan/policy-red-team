@@ -424,6 +424,18 @@ select {
     display: none;
 }
 
+.ingest-drop-box.locked-drop-zone {
+    opacity: 0.55;
+    background: #fff8f8 !important;
+    border-color: #d9534f !important;
+    border-style: dashed !important;
+    cursor: not-allowed !important;
+}
+
+.ingest-drop-box.locked-drop-zone * {
+    cursor: not-allowed !important;
+}
+
 .past-report-banner {
     background: #eaf1fb;
     border: 1px solid #1a73e8;

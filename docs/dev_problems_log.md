@@ -188,7 +188,71 @@ This document presents a deep-tech architectural retrospective of the engineerin
 
 ---
 
-## Summary Matrix
+## 20. Tool Multiplexing: Vertex AI Built-In vs Custom Tools
+
+* **Problem:** Execution failure `400 INVALID_ARGUMENT: Please enable tool_config.include_server_side_tool_invocations` when combining MCP tools with the Google Search tool.
+* **Root Cause Analysis:** Vertex AI's Gemini API strictly partitions server-side built-in tools (e.g., Google Search grounding) and client-side functional tools (e.g., MCP custom python tools). When both are provided to the model in a single request, the API requires explicit opt-in via the `include_server_side_tool_invocations` flag in the `tool_config` payload.
+* **Remediation & Architecture Fix:** Updated `src/orchestration/agents.py` to dynamically inject a custom `GenerateContentConfig` overriding the `tool_config` on the `DefenderAgent`'s `LlmAgent` instantiation whenever `enable_web_search` is active.
+* **Technical Pattern:** Tool Multiplexing, Server/Client-Side Invocation Routing, SDK Flag Configuration.
+
+---
+
+## 21. Data Validation: Pydantic Float/Integer Coercion & Prompt Anchoring
+
+* **Problem:** Validation error during `CitizenProxyAgent` output parsing due to fractional values (e.g., 0.8) for `benefit_score` instead of an integer.
+* **Root Cause Analysis:** Pydantic's strict typing expected an integer, but LLM output lacked strong numerical anchoring in the prompt and defaulted to returning float values (0.0 to 1.0).
+* **Remediation & Architecture Fix:** Updated the `StakeholderScore` model to accept `float | int` to prevent immediate crashes, and overhauled the `create_citizen_proxy_agent` system prompt with a strict 1-10 integer scoring rubric.
+* **Technical Pattern:** Multi-Type Data Coercion, Prompt Semantic Anchoring, Schema Flexibility.
+
+---
+
+## 22. Provenance Parsing: Unidentified Section Regex Fallback
+
+* **Problem:** Hallucinated high-severity loopholes caused by the `DefenderAgent`'s valid counter-arguments being stripped of quoted text and dropped from the final `LoopholeReport`.
+* **Root Cause Analysis:** Irregular PDF formatting caused the MCP regex parser (`_SECTION_ID_RE`) to fail, tagging crucial defensive clauses as `[Unidentified Section]`. The report extraction logic in `runner.py` did not properly map these unidentified sections back to their raw source text, leaving the `JudgeAgent` with no legal evidence.
+* **Remediation & Architecture Fix:** Updated `_extract_report()` to implement a robust fallback mechanism. If the LLM cites a section that was parsed as `[Unidentified Section]`, the runner now falls back to the highest-scoring unidentified citation in the `retrieval_provenance` array, preserving the exact quoted text for the Judge.
+* **Technical Pattern:** Regex Parsing Fallback, Evidence Binding, Defensive Data Mapping.
+
+---
+
+## 23. Legal Hierarchy & Jurisprudence: Ultra Vires & Statutory Precedence Disambiguation
+
+* **Problem:** Inability of the adversarial debate to detect governance and enforceability breakdowns when two provisions are internally coherent yet create an authority clash (e.g., a subordinate municipal bylaw or delegated regulation exceeding the statutory powers granted under its parent Act, or contradicting a superior statute without an explicit lexical negation).
+* **Root Cause Analysis:** Classical policy-checking systems treat loopholes purely as direct provision contradictions or linguistic vagueness. In public law and administrative jurisprudence, regulations frequently cause systemic failure not by contradicting terms directly, but because the subordinate body acted *ultra vires* (beyond its delegated powers) or because the legal order lacks a clear rule of recognition to determine which instrument controls under conflicting jurisdictions. When transitioning from identifying a flaw to recommending legislative remedies, arbitrarily picking a "winner" corrupts legal integrity.
+* **Remediation & Architecture Fix:** Extended `PolicyAuditState` (`src/orchestration/state.py`) with structured legal hierarchy primitives (`authority_findings`, `controlling_statute`, `statutory_precedence_ruling`). Injected formal administrative law rubrics into `AttackerAgent`, `DefenderAgent`, and `JudgeAgent` prompts (`src/orchestration/agents.py`), mandating explicit testing of: (1) source of delegated authority, (2) statutory scope boundaries, (3) superior Act override mechanisms, and (4) dual-track remediation (diagnosing which rule controls, how to narrow the subordinate rule, or what parent statute amendment is required) without arbitrarily erasing the legal distinction between inconsistency and precedence.
+* **Technical Pattern:** Doctrinal Precedence Grounding, Legal Hierarchy State Modeling, Structured Dual-Track Remediation.
+
+---
+
+## 24. Multi-Tenant Security: Zero-Trust LlamaCloud Key Gating & UI Hard Lockout
+
+* **Problem:** Security, billing, and rate-limit exposure in public/multi-tenant deployments where unauthenticated or unauthorized users could trigger expensive document parsing workloads on shared developer credentials or bypass API key requirements via frontend DOM manipulation.
+* **Root Cause Analysis:** The document ingestion pipeline (`src/ingest_policy.py`) initially relied on a global environment variable (`LLAMA_CLOUD_API_KEY`). When opening beta access to external testers with individual passcodes, sharing a single developer key introduced severe budgetary exhaustion risk and lacked tenant-level attribution. Additionally, the web client allowed file drag-and-drop and audit triggering before validating whether the user had supplied active credentials.
+* **Remediation & Architecture Fix:** 
+  1. Extended database schema with encrypted/per-user key storage (`passcodes.llama_key`) and masked credential retrieval APIs (`/api/user/llama_key`, `/api/user/info`).
+  2. Injected strict backend pre-flight authorization in `main.py` (`HTTP 403 Forbidden` if missing).
+  3. Implemented a comprehensive frontend lockout barrier (`applyLlamaLockState()` in `static/app.js`): when an account lacks an active key, the drop zones are visibly locked (`locked-drop-zone`), file inputs, controls, and buttons are disabled, and user actions automatically trigger a persistent configuration modal with format validation (`llx-...`).
+* **Technical Pattern:** Multi-Tenant Zero-Trust Credential Isolation, UI Pre-Flight Hard-Gate, Defense-in-Depth Authorization.
+
+---
+
+## 25. Distributed Persistence: Cloud Run Serverless Multi-Instance SQLite Desynchronization & Proactive Session Interception
+
+* **Problem:** Beta testers reported that after generating an audit report, the report rendered on screen but was completely missing from the "My Past Reports" tab. Furthermore, if a session expired or the server container restarted while the user was idle, the web UI remained visually active and interactable without notifying the user that re-authentication was required.
+* **Root Cause Analysis:** 
+  1. Multi-instance stateless routing: On Google Cloud Run, container instances scale dynamically. A long-running `POST /api/analyze` request was routed to Instance A (which recorded the report in Instance A's local SQLite database and mirrored it to GCS). Subsequent `GET /api/user/reports` requests were routed by Cloud Run's load balancer to Instance B (or a newly spawned instance). In `src/db.py`, GCS restore (`_sync_from_gcs()`) executed *only once at container startup*, leaving Instance B's local SQLite database completely unaware of reports created by other instances.
+  2. Single-Page Application (SPA) state decoupling: The client-side DOM and JavaScript state remained alive in browser memory across sleep/idle periods. Without an active session heartbeat, the client had no mechanism to detect backend container recycling or session invalidation until an API call failed.
+  3. Silent failure modes: `loadUserReports()` caught HTTP 401 Unauthorized errors silently, writing an unobtrusive text warning inside table rows rather than triggering authentication recovery.
+* **Remediation & Architecture Fix:**
+  1. Refactored `src/db.py` to decouple passcodes and reports cloud synchronization. Injected on-demand GCS synchronization (`_sync_reports_from_gcs()`) and local JSON directory indexing (`_index_local_reports_if_needed()`) directly into `get_user_reports()` and `get_all_reports()`, ensuring immediate cross-instance consistency.
+  2. Added fallback cloud synchronization into `verify_passcode()`, enabling instances to dynamically pull passcodes generated by administrator consoles on companion instances.
+  3. Built a proactive client-side session watchdog in `static/app.js`: hooked `window.addEventListener('focus', ...)` to verify credentials against `/api/user/info` upon window focus, and implemented a unified `handleSessionExpired()` interceptor that purges stale credentials and prompts immediate re-authentication on any 401 response.
+  4. Automatically triggered `loadUserReports()` immediately upon `/api/analyze` completion to eliminate client-side state lag.
+* **Technical Pattern:** Distributed Cache-Aside Synchronization, Stateless Serverless Multi-Instance Consistency, Reactive Client-Side Session Watchdog, Fail-Fast Re-Authentication.
+
+---
+
+## Complete Summary Matrix
 
 | Failure Mode | Deep-Tech Root Cause | Remediation Primitive | CS/AI Engineering Domain |
 |---|---|---|---|
@@ -215,30 +279,6 @@ This document presents a deep-tech architectural retrospective of the engineerin
 | Tool Multiplexing Failure | Server/Client-side tool routing rejection | Set `include_server_side_tool_invocations=True` | API Capabilities & Payload Config |
 | Proxy Score Coercion | Strict Pydantic int validation vs LLM float | `float \| int` schema + Prompt anchoring | Schema Flexibility & Anchoring |
 | Missing Evidence Fallback | Regex parsing failure for irregular PDF headers | Fallback to highest-scoring unidentified citation | Data Mapping & Fallback |
-
----
-
-## 20. Tool Multiplexing: Vertex AI Built-In vs Custom Tools
-
-* **Problem:** Execution failure `400 INVALID_ARGUMENT: Please enable tool_config.include_server_side_tool_invocations` when combining MCP tools with the Google Search tool.
-* **Root Cause Analysis:** Vertex AI's Gemini API strictly partitions server-side built-in tools (e.g., Google Search grounding) and client-side functional tools (e.g., MCP custom python tools). When both are provided to the model in a single request, the API requires explicit opt-in via the `include_server_side_tool_invocations` flag in the `tool_config` payload.
-* **Remediation & Architecture Fix:** Updated `src/orchestration/agents.py` to dynamically inject a custom `GenerateContentConfig` overriding the `tool_config` on the `DefenderAgent`'s `LlmAgent` instantiation whenever `enable_web_search` is active.
-* **Technical Pattern:** Tool Multiplexing, Server/Client-Side Invocation Routing, SDK Flag Configuration.
-
----
-
-## 21. Data Validation: Pydantic Float/Integer Coercion & Prompt Anchoring
-
-* **Problem:** Validation error during `CitizenProxyAgent` output parsing due to fractional values (e.g., 0.8) for `benefit_score` instead of an integer.
-* **Root Cause Analysis:** Pydantic's strict typing expected an integer, but LLM output lacked strong numerical anchoring in the prompt and defaulted to returning float values (0.0 to 1.0).
-* **Remediation & Architecture Fix:** Updated the `StakeholderScore` model to accept `float | int` to prevent immediate crashes, and overhauled the `create_citizen_proxy_agent` system prompt with a strict 1-10 integer scoring rubric.
-* **Technical Pattern:** Multi-Type Data Coercion, Prompt Semantic Anchoring, Schema Flexibility.
-
----
-
-## 22. Provenance Parsing: Unidentified Section Regex Fallback
-
-* **Problem:** Hallucinated high-severity loopholes caused by the `DefenderAgent`'s valid counter-arguments being stripped of quoted text and dropped from the final `LoopholeReport`.
-* **Root Cause Analysis:** Irregular PDF formatting caused the MCP regex parser (`_SECTION_ID_RE`) to fail, tagging crucial defensive clauses as `[Unidentified Section]`. The report extraction logic in `runner.py` did not properly map these unidentified sections back to their raw source text, leaving the `JudgeAgent` with no legal evidence.
-* **Remediation & Architecture Fix:** Updated `_extract_report()` to implement a robust fallback mechanism. If the LLM cites a section that was parsed as `[Unidentified Section]`, the runner now falls back to the highest-scoring unidentified citation in the `retrieval_provenance` array, preserving the exact quoted text for the Judge.
-* **Technical Pattern:** Regex Parsing Fallback, Evidence Binding, Defensive Data Mapping.
+| Ultra Vires / Authority Clash | Classical contradiction tests miss jurisdictional overreach | Structured Precedence & Authority Hierarchy Schema | Doctrinal Legal Reasoning & Administrative Law |
+| Tenant Key Budget Drain | Shared global parser key and unauthenticated client inputs | Per-Tenant Key Binding & Frontend Drop Zone Lockout | Multi-Tenant Zero-Trust Authorization |
+| Cloud Run Instance Desync | Ephemeral SQLite partitioning & silent client 401s | On-Demand GCS Sync & Focus-Triggered Session Watchdog | Distributed Serverless Consistency & Client State Resiliency |

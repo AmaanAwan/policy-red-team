@@ -58,6 +58,20 @@ If you are a private entity (like a housing society, developer, or corporation) 
    - Regular testers review the **Testing Guidelines** modal and click **Got it — Enter Platform**.
    - Demo accounts (`DEMO!`) are routed directly to the **My Past Reports** tab to explore pre-compiled demonstration reports. Demo accounts feature streamlined quota shielding (`Quota: Demo Account`), permit generation if capacity remains, and protect pre-compiled reports from deletion.
 
+> 💡 **Session Inactivity & Heartbeat:** The platform includes an automated session watchdog. If your computer goes to sleep or you leave the tab idle for a prolonged period, returning to the window automatically verifies your session with the backend. If your session expired on the server, you will be prompted to re-enter your passkey to resume smoothly.
+
+---
+
+### Step 1.5: Configure Your LlamaCloud API Key (Required for Live Audits)
+To preserve high-fidelity document layout parsing (tables, multi-column bylaws, statutory schedules), the engine uses LlamaCloud's agentic document parser:
+
+1. **Free API Key:** You can obtain a free LlamaCloud API key in 30 seconds at **[https://cloud.llamaindex.ai/](https://cloud.llamaindex.ai/)**.
+2. **Portal Security Lockout:** If an account does not yet have an active key, the policy ingestion drop zones and run button will be locked with an alert banner (*"🔑 Portal Locked — LlamaCloud API Key Required"*).
+3. **One-Time Configuration:**
+   - Click the red banner, the top menu bar **Settings → Configure LlamaCloud Key**, or the bottom status bar item (**`🔑 LlamaCloud`**).
+   - Paste your key (starts with `llx-...`) into the dialog and click **Save Key**.
+   - The portal unlocks instantly, and your key is securely bound to your tester passcode so you do not need to enter it again on subsequent logins.
+
 ---
 
 ### Step 2: Dual PDF Document Ingestion
@@ -104,7 +118,7 @@ Inspect the structured audit output:
 ---
 
 ### Step 6: Inspect Historical Reports & Scoping Parameters
-- **📁 My Past Reports Tab:** Switch to the reports tab to view all previous audits recorded under your account.
+- **📁 My Past Reports Tab:** Switch to the reports tab to view all previous audits recorded under your account. Reports are **automatically synchronized** to cloud storage immediately upon completion, so newly generated audits appear in your ledger across all browser sessions and cloud instances.
 - **📂 Open Past Report Action:**
   - Clicking **`[ 📂 Open ]`** reloads the full audit verdict, stakeholder impacts, and adversarial debate.
   - **Dual Scoping Inspection:** Automatically fills **Policy PDF Ingestion (Dual Scoping)** with the exact **Target Policy** and **Parent Statute** attached to that audit, including **`[ 📥 View ]`** buttons to view or download the original PDFs.

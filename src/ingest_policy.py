@@ -447,7 +447,11 @@ def ingest_document(
 
     persist_dir = str(output_dir) if output_dir else settings.FAISS_PERSIST_DIR
 
-    logger.info("ingest_document() called for: %s", [p.name for p in pdf_paths])
+    logger.info(
+        "ingest_document() called for: %s using LlamaCloud API Key: %s...",
+        [p.name for p in pdf_paths],
+        effective_api_key[:7] + "***" if len(effective_api_key) > 7 else "***",
+    )
 
     # ---- Step 1: Parse PDFs via LlamaCloud API ----
     client = LlamaCloud(api_key=effective_api_key)

@@ -79,6 +79,8 @@
 3. **Context Window Decay Mitigation**: Compresses raw MCP search results (~12,000 tokens/turn) into structured ~150–200 token `TurnSummary` Pydantic models (**99.2% token reduction**).
 4. **Concurrent Tool Transport**: FastMCP exposed over Server-Sent Events (SSE) on HTTP (`http://127.0.0.1:8090/sse`) to prevent IPC deadlocks during parallel agent execution.
 5. **Grounded Statutory Provenance**: Regex AST metadata parser extracts section identifiers (e.g., `§ 4(a)(ii)`), page numbers, and float-precision FAISS scores into typed `StatutoryCitation` objects.
+6. **Ultra Vires & Statutory Precedence Adjudication**: Evaluates delegated authority boundaries and legal hierarchy clashes between subordinate rules and parent Acts, issuing dual-track remediations without arbitrarily erasing precedence distinctions.
+7. **Stateless Serverless Consistency & Multi-Tenant Security**: Hybrid SQLite-WAL persistence with live Cloud Storage multi-instance synchronization, per-user LlamaCloud API key binding with dynamic portal lockout, and proactive client-side session watchdogs.
 
 ---
 

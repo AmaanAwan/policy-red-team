@@ -164,13 +164,18 @@
                 <form id="llama-key-form">
                     <fieldset class="classic-groupbox">
                         <legend>Save LlamaCloud API Key</legend>
+                        <div style="font-size: 11px; margin-bottom: 6px; padding: 4px; background: #f5f5f5; border: 1px inset #ccc;">
+                            <strong>Current Status:</strong> <span id="llama-key-status-text" style="color: #bb0000; font-weight: bold;">Not Configured (Portal Locked)</span>
+                        </div>
                         <label for="llama-key-input">Your API Key (llx-...):</label>
                         <input type="password" id="llama-key-input" placeholder="llx-..." required autofocus>
                     </fieldset>
                     
                     <div id="llama-key-error" class="error-banner hidden" style="margin-top:4px;">Failed to save key.</div>
+                    <div id="llama-key-success" class="guideline-box good hidden" style="margin-top:4px; padding: 4px 6px; font-size: 11px;">✔️ Key saved! Portal unlocked.</div>
 
                     <div style="display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px;">
+                        <button type="button" id="btn-cancel-llama-modal" class="btn-classic">Close</button>
                         <button type="submit" class="btn-classic btn-default" style="min-width: 75px;">Save Key</button>
                     </div>
                 </form>
@@ -199,6 +204,7 @@
             <div class="menu-item" id="menu-file"><u>F</u>ile</div>
             <div class="menu-item" id="menu-audit"><u>A</u>udit</div>
             <div class="menu-item" id="menu-reports"><u>R</u>eports</div>
+            <div class="menu-item" id="menu-settings"><u>S</u>ettings (API Key)</div>
             <div class="menu-item" id="menu-admin"><u>A</u>dmin</div>
             <div class="menu-item" id="menu-help"><u>H</u>elp (User Guide)</div>
         </div>
@@ -234,6 +240,17 @@
                             </div>
                             <div id="past-report-banner-details" style="font-size: 10px; color: #333;">
                                 Document ingestion and audit configuration are locked to the parameters used in this historical report.
+                            </div>
+                        </div>
+
+                        <!-- LlamaCloud API Key Locked Banner (shown when user has not entered a key) -->
+                        <div id="llama-lock-banner" class="past-report-banner hidden" style="border: 2px solid #cc0000; background: #fff2f2; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <strong style="color: #b00000; font-size: 11.5px;">🔒 Portal Locked — LlamaCloud API Key Required</strong>
+                                <button type="button" id="btn-lock-open-settings" class="btn-classic" style="font-size: 10px; font-weight: bold; background: #ffffd0;">🔑 Configure API Key</button>
+                            </div>
+                            <div style="font-size: 10.5px; color: #444; line-height: 1.35;">
+                                Document parsing and policy red-teaming require a personal <strong>LlamaCloud API Key</strong>. All audit controls, upload drop zones, and analysis triggers are disabled until you save your key in Settings.
                             </div>
                         </div>
 
@@ -601,6 +618,7 @@
             <div class="status-pane fill" id="status-text">Ready</div>
             <div class="status-pane" id="status-user">User: Anonymous</div>
             <div class="status-pane" id="status-quota">Quota: -</div>
+            <div class="status-pane" id="status-llama-key" style="cursor: pointer;" title="Click to view/update LlamaCloud API Key">🔑 LlamaCloud: -</div>
             <div class="status-pane">Pakistan Law RAG</div>
             <div class="status-pane">ADK 2.0</div>
         </div>
