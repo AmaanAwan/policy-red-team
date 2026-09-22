@@ -131,6 +131,54 @@
     </div>
 
     <!-- ====================================================================
+         2.5. LlamaCloud API Key Prompt Modal
+         ==================================================================== -->
+    <div id="llama-key-modal" class="overlay-modal hidden">
+        <div class="window window-dialog">
+            <div class="title-bar">
+                <div class="title-bar-text">
+                    <span>🔑</span> Provide LlamaCloud API Key
+                </div>
+                <div class="title-bar-controls">
+                    <button class="title-btn close" id="btn-close-llama-modal">✕</button>
+                </div>
+            </div>
+            <div class="window-body">
+                <div class="notice-box" style="margin-bottom: 8px;">
+                    <span class="notice-icon">⚠️</span>
+                    <div>
+                        <strong>API Key Required:</strong> To parse complex regulatory PDFs accurately, this platform uses LlamaParse. You need to provide your own LlamaCloud API Key to run audits.
+                    </div>
+                </div>
+
+                <fieldset class="classic-groupbox" style="margin-bottom: 8px;">
+                    <legend>How to get a key</legend>
+                    <div style="font-size: 11px; color: #333; line-height: 1.4;">
+                        1. Go to <a href="https://cloud.llamaindex.ai" target="_blank">cloud.llamaindex.ai</a> and sign in.<br>
+                        2. Navigate to <strong>API Keys</strong> in the dashboard.<br>
+                        3. Generate a new API Key (starts with <code>llx-</code>).<br>
+                        4. Paste it below to save it to your account.
+                    </div>
+                </fieldset>
+
+                <form id="llama-key-form">
+                    <fieldset class="classic-groupbox">
+                        <legend>Save LlamaCloud API Key</legend>
+                        <label for="llama-key-input">Your API Key (llx-...):</label>
+                        <input type="password" id="llama-key-input" placeholder="llx-..." required autofocus>
+                    </fieldset>
+                    
+                    <div id="llama-key-error" class="error-banner hidden" style="margin-top:4px;">Failed to save key.</div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px;">
+                        <button type="submit" class="btn-classic btn-default" style="min-width: 75px;">Save Key</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================================
          3. Main Desktop Application Window
          ==================================================================== -->
     <div id="app-window" class="window hidden">
@@ -481,6 +529,10 @@
                             <div>
                                 <label>Custom Passcode (Optional):</label>
                                 <input type="text" id="admin-new-code" placeholder="Auto-generated if blank">
+                            </div>
+                            <div>
+                                <label>LlamaCloud Key (Optional):</label>
+                                <input type="password" id="admin-new-llama" placeholder="llx-...">
                             </div>
                             <div>
                                 <button type="submit" class="btn-classic btn-default" style="height: 23px;">➕ Create Passcode</button>

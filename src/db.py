@@ -69,6 +69,14 @@ def init_db() -> None:
             );
             """
         )
+        
+        # Migrate schema for Llama API key if needed
+        try:
+            conn.execute("ALTER TABLE passcodes ADD COLUMN llama_key TEXT DEFAULT NULL")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass # Column already exists
+        
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS reports (
@@ -96,8 +104,8 @@ def init_db() -> None:
         if not admin_row:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO passcodes (passcode, label, is_admin, report_limit, reports_used, created_at)
-                VALUES (?, ?, 1, -1, 0, ?)
+                INSERT OR REPLACE INTO passcodes (passcode, label, is_admin, report_limit, reports_used, created_at, llama_key)
+                VALUES (?, ?, 1, -1, 0, ?, NULL)
                 """,
                 (MASTER_ADMIN_PASSWORD, "Master Administrator", now),
             )
@@ -115,8 +123,8 @@ def init_db() -> None:
         ]:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO passcodes (passcode, label, is_admin, report_limit, reports_used, created_at)
-                VALUES (?, ?, 0, ?, 0, ?)
+                INSERT OR IGNORE INTO passcodes (passcode, label, is_admin, report_limit, reports_used, created_at, llama_key)
+                VALUES (?, ?, 0, ?, 0, ?, NULL)
                 """,
                 (code, label, limit, now),
             )
@@ -174,8 +182,8 @@ def _sync_from_gcs() -> None:
                 for item in data:
                     conn.execute(
                         """
-                        INSERT OR REPLACE INTO passcodes (passcode, label, is_admin, report_limit, reports_used, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT OR REPLACE INTO passcodes (passcode, label, is_admin, report_limit, reports_used, created_at, llama_key)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             item["passcode"],
@@ -184,6 +192,7 @@ def _sync_from_gcs() -> None:
                             item.get("report_limit", 5),
                             item.get("reports_used", 0),
                             item.get("created_at", datetime.now(timezone.utc).isoformat()),
+                            item.get("llama_key"),
                         ),
                     )
                 conn.commit()
@@ -277,7 +286,7 @@ def verify_passcode(passcode: str) -> dict[str, Any] | None:
 
     with get_db_connection() as conn:
         row = conn.execute(
-            "SELECT passcode, label, is_admin, report_limit, reports_used FROM passcodes WHERE passcode = ?",
+            "SELECT passcode, label, is_admin, report_limit, reports_used, llama_key FROM passcodes WHERE passcode = ?",
             (cleaned,),
         ).fetchone()
 
@@ -288,6 +297,7 @@ def verify_passcode(passcode: str) -> dict[str, Any] | None:
                 "is_admin": bool(row["is_admin"]),
                 "report_limit": row["report_limit"],
                 "reports_used": row["reports_used"],
+                "llama_key": row["llama_key"],
             }
     return None
 
@@ -496,19 +506,20 @@ def delete_report(report_id: str, passcode: str, is_admin: bool = False) -> bool
 
 
 
-def create_passcode(label: str, report_limit: int = 5, custom_passcode: str = "") -> dict[str, Any]:
+def create_passcode(label: str, report_limit: int = 5, custom_passcode: str = "", llama_key: str = "") -> dict[str, Any]:
     """Admin: Creates a new user passcode with specified report limit."""
     code = custom_passcode.strip() if custom_passcode else f"TEST-{uuid.uuid4().hex[:6].upper()}"
     now = datetime.now(timezone.utc).isoformat()
+    l_key = llama_key.strip() or None
 
     with get_db_connection() as conn:
         conn.execute(
             """
             INSERT OR REPLACE INTO passcodes
-            (passcode, label, is_admin, report_limit, reports_used, created_at)
-            VALUES (?, ?, 0, ?, 0, ?)
+            (passcode, label, is_admin, report_limit, reports_used, created_at, llama_key)
+            VALUES (?, ?, 0, ?, 0, ?, ?)
             """,
-            (code, label.strip(), report_limit, now),
+            (code, label.strip(), report_limit, now, l_key),
         )
         conn.commit()
 
@@ -520,6 +531,7 @@ def create_passcode(label: str, report_limit: int = 5, custom_passcode: str = ""
         "report_limit": report_limit,
         "reports_used": 0,
         "created_at": now,
+        "llama_key": l_key,
     }
 
 
@@ -528,7 +540,7 @@ def list_all_passcodes() -> list[dict[str, Any]]:
     with get_db_connection() as conn:
         rows = conn.execute(
             """
-            SELECT passcode, label, is_admin, report_limit, reports_used, created_at
+            SELECT passcode, label, is_admin, report_limit, reports_used, created_at, llama_key
             FROM passcodes
             ORDER BY is_admin DESC, created_at DESC
             """
@@ -564,5 +576,17 @@ def update_passcode_limit(passcode: str, new_limit: int, reset_used: bool = Fals
             )
         conn.commit()
 
+    _sync_passcodes_to_gcs()
+    return True
+
+
+def update_user_llama_key(passcode: str, llama_key: str) -> bool:
+    """User: Updates their own LlamaCloud API Key."""
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE passcodes SET llama_key = ? WHERE passcode = ?",
+            (llama_key.strip() or None, passcode),
+        )
+        conn.commit()
     _sync_passcodes_to_gcs()
     return True

@@ -212,7 +212,7 @@ YOUR TASK FOR THIS TURN:
 
 3. Structure your argument as follows:
    EXPLOIT CLAIM: [One clear sentence — what is the loophole?]
-   MECHANISM: [Choose ONE: Definitional Gap | Exemption Abuse | Penalty Asymmetry | Jurisdictional Arbitrage | Procedural Loophole]
+   MECHANISM: [Choose ONE: Definitional Gap | Exemption Abuse | Penalty Asymmetry | Jurisdictional Arbitrage | Procedural Loophole | Ultra Vires / Excess of Delegated Authority | Hierarchy & Precedence Ambiguity]
    STATUTORY BASIS: [Exact quote from search results — copy verbatim, do not paraphrase]
    SECTION REFERENCE: [e.g., Rule 7(3)(b) of the Rawalpindi Development Authority Bylaws 2023]
    PRACTICAL APPLICATION: [How would {state.target_entity} exploit this in practice?]
@@ -235,6 +235,10 @@ If your first search returns irrelevant results, decompose your query:
     (e.g., "definition of completed structure", "meaning of commercial use")
   - Search for FEE SCHEDULES or PENALTY TABLES where numerical asymmetries
     might create arbitrage opportunities
+  - Search for DELEGATED POWERS & HIERARCHY LIMITS:
+    If a SUPPORTING DOCUMENT (e.g. parent Act) is present, search whether the subordinate target
+    rule imposes duties, penalties, or restrictions that exceed the parent Act's rule-making mandate
+    (Ultra Vires) or creates an unresolvable precedence clash with superior legislation.
 """.strip()
 
     # Append custom user instructions if provided (injected via Streamlit UI)
@@ -303,10 +307,11 @@ SEARCH 1 — DIRECT COUNTER-CLAUSE:
   Search for the specific concept the Attacker exploits.
   e.g., "penalty provisions for unauthorized construction"
 
-SEARCH 2 — SUPERIOR STATUTORY OVERRIDE:
+SEARCH 2 — SUPERIOR STATUTORY OVERRIDE & ENABLING AUTHORITY:
   Search for overriding authority clauses, non-obstante provisions,
-  or parent Act restrictions that limit subordinate bylaws.
+  parent Act restrictions, or enabling rule-making powers.
   e.g., "notwithstanding anything contained in any rule"
+  e.g., "powers of the Authority to make regulations or bylaws"
   e.g., "powers of the Authority to override or cancel"
 
 SEARCH 3 — GENERAL PENALTIES & DEFINITIONS:
@@ -327,6 +332,12 @@ strongest counter-clause found across ALL search results.
    LEGAL REASONING: [Why this counter-clause applies and limits the Attacker's argument]
    REMAINING VULNERABILITY: [If WEAKENED: what part of the exploit still survives?]
    CONFIDENCE: [0.0–1.0]
+
+=== AUTHORITY & PRECEDENCE DEFENSE RULE ===
+If the Attacker challenges the target rule as Ultra Vires or clashing with superior law:
+- In SEARCH 2, search specifically for the Parent Act's enabling section granting the authority to frame such a rule.
+- If the Parent Act explicitly authorizes the rule or includes a non-obstante clause, cite that section to BLOCK the exploit.
+- If the Parent Act lacks enabling authority, or if a superior Act overrides it, concede that the defense is WEAKENED or INSUFFICIENT. Under Pakistani administrative law, subordinate bylaws cannot override parent acts.
 
 === SYCOPHANCY PREVENTION RULE (MANDATORY) ===
 Your rebuttal is ONLY valid if it cites a DIFFERENT statutory section from the
@@ -552,7 +563,7 @@ Write a clean, finalized canonical summary of this exploit.
 Output ONLY valid JSON. No preamble, no markdown fences. Raw JSON only:
 {{
   "summary": "<One clean paragraph ≤ 250 tokens describing the final loophole claim clearly>",
-  "exploit_vector": "<Definitional Gap | Exemption Abuse | Penalty Asymmetry | Jurisdictional Arbitrage | Procedural Loophole>",
+  "exploit_vector": "<Definitional Gap | Exemption Abuse | Penalty Asymmetry | Jurisdictional Arbitrage | Procedural Loophole | Ultra Vires / Excess of Delegated Authority | Hierarchy & Precedence Ambiguity>",
   "primary_citation_ids": [
     "<Exact section reference from debate, e.g., Rule 7(3)(b)>"
   ],
@@ -792,13 +803,32 @@ HIGH     → Exploit is viable; partial counter-clauses exist but do not fully b
 MEDIUM   → Exploit has significant barriers or requires specific conditions
 LOW      → Exploit is theoretical; multiple effective counter-clauses exist
 
+=== AUTHORITY & PRECEDENCE REASONING PROTOCOL (CRITICAL) ===
+When evaluating conflicts between provisions, between Target and Supporting documents, or jurisdictional overlaps:
+1. PRECEDENCE DIAGNOSIS:
+   Determine which rule actually controls under administrative law hierarchy principles (e.g., lex superior derogat legi inferiori; subordinate bylaws/SROs cannot exceed powers delegated by a parent Act).
+   Preserve the crucial difference between:
+   - "This looks internally inconsistent" (drafting ambiguity)
+   - "Which rule actually governs" (legal precedence & authority chain)
+
+2. DUAL-TRACK REMEDIATION (DO NOT ARBITRARILY PICK A WINNER):
+   Do not unilaterally rewrite or choose one regulator over another when authority is disputed or ambiguous.
+   Structure the "remediation_recommendation" field accordingly:
+   - For Standard Loopholes (Definitional Gap, Exemption Abuse, Penalty Asymmetry, Procedural Loophole):
+     Specify the exact section to amend and the recommended revised statutory wording.
+   - For Ultra Vires or Hierarchy & Precedence Ambiguities:
+     Provide a structured dual-track recommendation:
+     • [Precedence Diagnosis]: State which instrument currently legally controls, or detail why the authority chain is unresolved.
+     • [Path A — Superior Instrument Controls]: State what provision of the subordinate document must be rescinded, narrowed, or harmonized to stay intra vires.
+     • [Path B — Subordinate Regulator Intended to Govern]: Specify the exact legislative amendment required in the parent statute to explicitly delegate that jurisdiction/power.
+
 Output ONLY valid JSON conforming EXACTLY to this schema. No preamble, no markdown:
 {{
   "severity_classification": "<Critical | High | Medium | Low>",
   "legal_confidence_score": <float 0.0-1.0>,
   "affected_population_estimate": "<Combined 2-3 sentence assessment across both stakeholder groups>",
-  "remediation_recommendation": "<Specific statutory amendment or regulatory change that would close this loophole. Be precise: name the section to amend and the specific wording change needed.>",
-  "raw_judge_reasoning": "<Your full chain-of-thought here. Include: how you weighted turn verdicts, any confidence reductions applied, any evidence gaps noted, and why you chose this severity classification.>"
+  "remediation_recommendation": "<Specific statutory amendment or dual-track remediation. For precedence/ultra vires issues, include [Precedence Diagnosis], [Path A], and [Path B]. For standard loopholes, name the section and specific wording change needed.>",
+  "raw_judge_reasoning": "<Your full chain-of-thought here. Include: how you weighted turn verdicts, authority chain analysis, any confidence reductions applied, any evidence gaps noted, and why you chose this severity classification.>"
 }}
 """.strip()
 

@@ -54,6 +54,8 @@ class ExploitVector(str, Enum):
     PENALTY_ASYMMETRY = "Penalty Asymmetry"
     JURISDICTIONAL_ARBITRAGE = "Jurisdictional Arbitrage"
     PROCEDURAL_LOOPHOLE = "Procedural Loophole"
+    ULTRA_VIRES = "Ultra Vires / Excess of Delegated Authority"
+    PRECEDENCE_CONFLICT = "Hierarchy & Precedence Ambiguity"
 
 
 class SeverityClassification(str, Enum):

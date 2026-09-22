@@ -94,9 +94,9 @@ The system automatically extracts text from your document to auto-detect:
 
 ### Step 5: Review Results & Legal Findings
 Inspect the structured audit output:
-- **🎯 Core Finding:** The identified **Exploit Vector** (e.g., *Jurisdictional Arbitrage*, *Definitional Gap*), Severity badge, Legal Confidence score, and Loophole Summary.
+- **🎯 Core Finding:** The identified **Exploit Vector** (e.g., *Ultra Vires / Excess of Delegated Authority*, *Hierarchy & Precedence Ambiguity*, *Jurisdictional Arbitrage*, *Definitional Gap*), Severity badge, Legal Confidence score, and Loophole Summary.
 - **👥 Citizen & 🏢 Business Impact:** Quantitative Harm (0.0–1.0) and Benefit (0.0–1.0) scores and affected population descriptions.
-- **🔧 Remediation Recommendation:** Concrete statutory amendments proposed to close the loophole.
+- **🔧 Remediation Recommendation:** Concrete statutory amendments proposed to close the loophole. For precedence clashes or *ultra vires* risks, provides a **Dual-Track Remediation** (diagnosing which rule controls, how to narrow the subordinate rule, or what parent statute amendment is needed) without arbitrarily picking a policy winner.
 - **🧠 Senior Judge Chain-of-Thought:** Raw step-by-step reasoning weighing Attacker claims against Defender rebuttals.
 - **📜 Adversarial Debate Transcript:** Turn-by-turn arguments and citations from each agent.
 - **📚 Statutory Citations:** Verifiable quotes from the uploaded PDFs with source documents and page numbers.

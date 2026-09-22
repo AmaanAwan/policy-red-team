@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.orchestration.state import (
+    CanonicalExploit,
     DocumentEntry,
     DocumentRole,
     ExploitVector,
@@ -181,3 +182,25 @@ class TestPolicyAuditState:
         )
         s_dict = state.to_session_dict()
         assert s_dict["enable_web_search"] is True
+
+    def test_exploit_vector_values(self):
+        assert ExploitVector.ULTRA_VIRES.value == "Ultra Vires / Excess of Delegated Authority"
+        assert ExploitVector.PRECEDENCE_CONFLICT.value == "Hierarchy & Precedence Ambiguity"
+        assert ExploitVector.DEFINITIONAL_GAP.value == "Definitional Gap"
+
+    def test_canonical_exploit_with_precedence_vectors(self):
+        exploit1 = CanonicalExploit(
+            summary="Bylaw rule 7 exceeds authority under Section 4 of Parent Act",
+            exploit_vector=ExploitVector.ULTRA_VIRES,
+            primary_citation_ids=("Rule 7", "Section 4"),
+            is_novel=True,
+        )
+        assert exploit1.exploit_vector == ExploitVector.ULTRA_VIRES
+
+        exploit2 = CanonicalExploit(
+            summary="Precedence clash between Municipal code and Provincial statute",
+            exploit_vector=ExploitVector.PRECEDENCE_CONFLICT,
+            primary_citation_ids=("Section 12",),
+            is_novel=True,
+        )
+        assert exploit2.exploit_vector == ExploitVector.PRECEDENCE_CONFLICT

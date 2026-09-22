@@ -120,8 +120,11 @@ function loginSuccess(userInfo, showGuide = true) {
     } else {
         statusText.textContent = "Ready";
         if (showGuide) {
-            // Show Testing Instructions & Guidelines Modal upon entering regular passcode
-            instructionsModal.classList.remove('hidden');
+            if (!userInfo.is_admin && !userInfo.has_llama_key) {
+                document.getElementById('llama-key-modal').classList.remove('hidden');
+            } else {
+                instructionsModal.classList.remove('hidden');
+            }
         }
     }
 }
@@ -198,6 +201,36 @@ document.getElementById('btn-window-close')?.addEventListener('click', () => {
         currentUser = null;
         authOverlay.classList.remove('hidden');
         appWindow.classList.add('hidden');
+    }
+});
+
+// Llama Key Modal Handling
+document.getElementById('btn-close-llama-modal')?.addEventListener('click', () => {
+    document.getElementById('llama-key-modal').classList.add('hidden');
+    instructionsModal.classList.remove('hidden');
+});
+
+document.getElementById('llama-key-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const key = document.getElementById('llama-key-input').value.trim();
+    if (!key || !currentUser) return;
+
+    try {
+        const fd = new FormData();
+        fd.append("passcode", currentUser.passcode);
+        fd.append("llama_key", key);
+
+        const res = await fetch('/api/user/llama_key', { method: 'POST', body: fd });
+        if (res.ok) {
+            currentUser.has_llama_key = true;
+            document.getElementById('llama-key-modal').classList.add('hidden');
+            instructionsModal.classList.remove('hidden');
+        } else {
+            document.getElementById('llama-key-error').classList.remove('hidden');
+        }
+    } catch (err) {
+        document.getElementById('llama-key-error').textContent = "Network error saving key.";
+        document.getElementById('llama-key-error').classList.remove('hidden');
     }
 });
 
@@ -935,12 +968,14 @@ document.getElementById('admin-create-passcode-form')?.addEventListener('submit'
     const label = document.getElementById('admin-new-label').value.trim();
     const limit = parseInt(document.getElementById('admin-new-limit').value, 10) || 5;
     const customCode = document.getElementById('admin-new-code').value.trim();
+    const llamaKey = document.getElementById('admin-new-llama').value.trim();
 
     const fd = new FormData();
     fd.append("admin_passcode", currentUser.passcode);
     fd.append("label", label);
     fd.append("report_limit", limit);
     if (customCode) fd.append("custom_passcode", customCode);
+    if (llamaKey) fd.append("llama_key", llamaKey);
 
     try {
         const res = await fetch('/api/admin/passcodes', { method: 'POST', body: fd });
@@ -950,6 +985,7 @@ document.getElementById('admin-create-passcode-form')?.addEventListener('submit'
         alert(`✅ Passcode Created Successfully!\n\nPasscode: ${created.passcode}\nAssigned to: ${created.label}\nReport Limit: ${created.report_limit}`);
         document.getElementById('admin-new-label').value = "";
         document.getElementById('admin-new-code').value = "";
+        document.getElementById('admin-new-llama').value = "";
         loadAdminPasscodes();
     } catch (err) {
         alert(`Error: ${err.message}`);

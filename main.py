@@ -28,6 +28,7 @@ from src.db import (
     list_all_passcodes,
     delete_passcode,
     update_passcode_limit,
+    update_user_llama_key,
 )
 
 # Setup Logging
@@ -146,6 +147,7 @@ async def authenticate(password: str = Form(...)):
             "label": info["label"],
             "reports_used": info["reports_used"],
             "report_limit": info["report_limit"],
+            "has_llama_key": bool(info.get("llama_key")),
         }
     raise HTTPException(status_code=401, detail="Invalid passcode. Please check your credentials.")
 
@@ -219,7 +221,7 @@ async def analyze_policies(
             from src.ingest_policy import ingest_document
             actual_faiss_dir = ingest_document(
                 pdf_paths=pdf_paths,
-                llama_api_key=DEV_LLAMA_KEY or None,
+                llama_api_key=user_info.get("llama_key") or DEV_LLAMA_KEY or None,
                 output_dir=faiss_dir,
             )
 
@@ -302,6 +304,14 @@ async def list_user_reports(passcode: str):
         raise HTTPException(status_code=401, detail="Invalid passcode")
     return get_user_reports(passcode)
 
+@app.post("/api/user/llama_key")
+async def set_user_llama_key(passcode: str = Form(...), llama_key: str = Form(...)):
+    info = verify_passcode(passcode)
+    if not info:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
+    success = update_user_llama_key(passcode, llama_key)
+    return {"status": "ok", "saved": success}
+
 @app.get("/api/reports/{report_id}")
 async def get_report_details(report_id: str, passcode: str):
     info = verify_passcode(passcode)
@@ -362,11 +372,17 @@ async def admin_create_passcode(
     label: str = Form(...),
     report_limit: int = Form(5),
     custom_passcode: Optional[str] = Form(""),
+    llama_key: Optional[str] = Form(""),
 ):
     info = verify_passcode(admin_passcode)
     if not info or not info["is_admin"]:
         raise HTTPException(status_code=403, detail="Admin privileges required")
-    return create_passcode(label=label, report_limit=report_limit, custom_passcode=custom_passcode or "")
+    return create_passcode(
+        label=label, 
+        report_limit=report_limit, 
+        custom_passcode=custom_passcode or "",
+        llama_key=llama_key or ""
+    )
 
 @app.delete("/api/admin/passcodes/{passcode}")
 async def admin_delete_passcode(passcode: str, admin_passcode: str):
